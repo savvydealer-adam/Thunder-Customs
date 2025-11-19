@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Link } from "wouter";
 import { Package, Shield, Truck, Wrench } from "lucide-react";
 import ramTruckImage from "@assets/2026 Ram Rebel Red_1763578750235.png";
-import jeepImage from "@assets/stock_images/lifted_jeep_wrangler_784916fe.jpg";
+import jeepImage from "@assets/2025_JL_PJ5_X9_JLJS74,2TY,22Y,APA,HT3,dg_fullfronthero___trn_1763578804575.png";
 
 export default function Home() {
   const features = [
@@ -133,7 +133,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent rounded-md" />
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
                   <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                    Off-Road Gear
+                    Jeep Accessories
                   </h3>
                   <p className="text-white/90 mb-4 text-sm md:text-base">
                     Lift kits, rock sliders, winches, and trail-ready upgrades for Jeep Wranglers
