@@ -20,7 +20,7 @@ export default function Admin() {
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      return await apiRequest('POST', '/api/admin/import-batch', formData) as unknown as {
+      return await apiRequest('POST', '/api/admin/import-batch', formData) as {
         success: boolean;
         totalImported: number;
         filesProcessed: number;
@@ -48,7 +48,7 @@ export default function Admin() {
 
   const imageSourceMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('POST', '/api/admin/populate-images', {}) as unknown as {
+      return await apiRequest('POST', '/api/admin/populate-images', {}) as {
         success: boolean;
         updated: number;
         total: number;
