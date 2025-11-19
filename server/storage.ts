@@ -1,4 +1,5 @@
-import { products, categories, manufacturers, vehicleMakes, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake } from "@shared/schema";
+// Reference: blueprint:javascript_log_in_with_replit
+import { products, categories, manufacturers, vehicleMakes, users, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake, type User, type UpsertUser } from "@shared/schema";
 import { db } from "./db";
 import { eq, ilike, and, or, inArray, sql, isNull } from "drizzle-orm";
 
@@ -12,6 +13,12 @@ export interface IStorage {
   getCategories(): Promise<Category[]>;
   getManufacturers(): Promise<Manufacturer[]>;
   getVehicleMakes(): Promise<VehicleMake[]>;
+  
+  // User operations for Replit Auth
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  getAllUsers(): Promise<User[]>;
+  updateUserRole(id: string, role: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -118,6 +125,38 @@ export class DatabaseStorage implements IStorage {
       .update(products)
       .set({ imageUrl, updatedAt: new Date() })
       .where(eq(products.id, id));
+  }
+
+  // User operations for Replit Auth
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.email);
+  }
+
+  async updateUserRole(id: string, role: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, id));
   }
 }
 

@@ -1,8 +1,10 @@
+// Reference: blueprint:javascript_log_in_with_replit
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
+import { setupAuth, isAuthenticated, requireAdmin } from "./replitAuth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -15,6 +17,22 @@ async function searchProductImage(partName: string, manufacturer: string): Promi
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup authentication middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Public product routes
   app.get("/api/products", async (req, res) => {
     try {
       const { category, manufacturer, vehicleMake, search } = req.query;
@@ -57,7 +75,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/import-csv", upload.single('file'), async (req, res) => {
+  // Protected admin routes - require authentication and admin role
+  app.post("/api/admin/import-csv", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -84,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/import-batch", upload.array('files', 50), async (req, res) => {
+  app.post("/api/admin/import-batch", isAuthenticated, requireAdmin, upload.array('files', 50), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       
@@ -124,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/populate-images", async (req, res) => {
+  app.post("/api/admin/populate-images", isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!process.env.UNSPLASH_ACCESS_KEY) {
         return res.status(400).json({ 

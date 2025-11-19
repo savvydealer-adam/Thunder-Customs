@@ -1,12 +1,28 @@
-import { Search, ShoppingCart, Menu } from "lucide-react";
+import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import logoUrl from "@assets/Thunder Customs Logo TRANSPARENT_1763572622278.png";
+import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
+  const { user, isAuthenticated, isAdmin } = useAuth();
+
+  const getInitials = (firstName?: string | null, lastName?: string | null) => {
+    if (!firstName && !lastName) return "U";
+    return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
@@ -36,14 +52,81 @@ export function Header() {
                 Shop Parts
               </Button>
             </Link>
-            <Link href="/admin">
-              <Button variant="ghost" data-testid="button-admin">
-                Admin
-              </Button>
-            </Link>
+            
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="ghost" data-testid="button-admin">
+                  <Shield className="w-4 h-4 mr-2" />
+                  Admin
+                </Button>
+              </Link>
+            )}
+            
             <Button variant="ghost" size="icon" data-testid="button-cart">
               <ShoppingCart className="h-5 w-5" />
             </Button>
+
+            {isAuthenticated && user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user.profileImageUrl || undefined} className="object-cover" />
+                      <AvatarFallback>{getInitials(user.firstName, user.lastName)}</AvatarFallback>
+                    </Avatar>
+                    <span className="hidden lg:inline">
+                      {user.firstName || user.lastName 
+                        ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                        : user.email || 'Account'}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user.firstName || user.lastName 
+                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                          : 'My Account'}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                      </p>
+                      {user.role && (
+                        <p className="text-xs leading-none text-primary capitalize">
+                          {user.role}
+                        </p>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/employees">
+                          <User className="w-4 h-4 mr-2" />
+                          Manage Employees
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <a href="/api/logout" className="w-full" data-testid="button-logout">
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Log Out
+                    </a>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button asChild data-testid="button-login">
+                <a href="/api/login">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Log In
+                </a>
+              </Button>
+            )}
           </nav>
 
           <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-menu">
