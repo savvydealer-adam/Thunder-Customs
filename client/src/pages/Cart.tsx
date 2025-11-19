@@ -6,9 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, ArrowLeft, Trash2, Plus, Minus, Download, Printer } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { generateShoppingListPDF } from "@/lib/pdfGenerator";
 
 export default function Cart() {
   const { items, updateQuantity, removeFromCart, clearCart, getTotalItems } = useCart();
+
+  const handleDownloadPDF = () => {
+    generateShoppingListPDF(items);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const subtotal = items.reduce((sum, item) => {
     const price = item.product.price ? parseFloat(item.product.price) : 0;
@@ -201,12 +210,12 @@ export default function Cart() {
                       Download or print your shopping list to bring to Thunder Customs dealership
                     </p>
                     
-                    <Button className="w-full gap-2" size="lg" data-testid="button-download-pdf">
+                    <Button className="w-full gap-2" size="lg" onClick={handleDownloadPDF} data-testid="button-download-pdf">
                       <Download className="h-4 w-4" />
                       Download PDF
                     </Button>
 
-                    <Button variant="outline" className="w-full gap-2" data-testid="button-print">
+                    <Button variant="outline" className="w-full gap-2" onClick={handlePrint} data-testid="button-print">
                       <Printer className="h-4 w-4" />
                       Print List
                     </Button>

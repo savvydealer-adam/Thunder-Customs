@@ -286,3 +286,79 @@
     inset: -1px;
   }
 }
+
+/* Print Styles for Shopping Cart */
+@media print {
+  /* Hide navigation, buttons, and interactive elements */
+  header,
+  nav,
+  button,
+  .print-hide,
+  [data-testid="button-continue-shopping"],
+  [data-testid="button-download-pdf"],
+  [data-testid="button-print"],
+  [data-testid="button-clear-cart"],
+  [data-testid="button-remove"],
+  [data-testid="button-increase"],
+  [data-testid="button-decrease"] {
+    display: none !important;
+  }
+
+  /* Make sure cart items are visible */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Adjust layout for print */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .container {
+    max-width: 100% !important;
+    padding: 20px !important;
+  }
+
+  /* Stack columns for print */
+  .grid {
+    display: block !important;
+  }
+
+  /* Remove shadows and borders for cleaner print */
+  .shadow,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Add page header */
+  @page {
+    margin: 1.5cm;
+  }
+
+  /* Ensure cards print well */
+  .break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  /* Print-specific styling for cart items */
+  [data-testid^="cart-item-"] {
+    break-inside: avoid;
+    border: 1px solid #ddd !important;
+    margin-bottom: 10px !important;
+    padding: 15px !important;
+    page-break-inside: avoid;
+  }
+
+  /* Hide quantity controls but show quantity value */
+  input[type="number"] {
+    border: none !important;
+    background: transparent !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    text-align: left !important;
+  }
+}
