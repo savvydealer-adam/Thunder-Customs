@@ -18,13 +18,13 @@ import type { User as UserType } from "@shared/schema";
 import { Redirect } from "wouter";
 
 export default function EmployeeManagement() {
-  const { user: currentUser, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const { user: currentUser, isStrictAdmin, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: users, isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
-    enabled: !!currentUser && isAdmin,
+    enabled: !!currentUser && isStrictAdmin,
   });
 
   const updateRoleMutation = useMutation({
@@ -55,7 +55,7 @@ export default function EmployeeManagement() {
     );
   }
 
-  if (!currentUser || !isAdmin) {
+  if (!currentUser || !isStrictAdmin) {
     return <Redirect to="/" />;
   }
 

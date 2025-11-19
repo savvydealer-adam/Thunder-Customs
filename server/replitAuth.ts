@@ -35,7 +35,7 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: sessionTtl,
     },
   });
@@ -54,12 +54,17 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
+  // Upsert user - only sets default role on first insert, preserves role on updates
+  const existingUser = await storage.getUser(claims["sub"]);
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    // Only set default role if user doesn't exist yet
+    role: existingUser?.role || 'staff',
   });
 }
 
@@ -162,7 +167,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Middleware to check if user has admin or manager role
+// Middleware to check if user has admin or manager role (for product management)
 export const requireAdmin: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
   
@@ -174,6 +179,25 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
     const dbUser = await storage.getUser(user.claims.sub);
     if (!dbUser || (dbUser.role !== 'admin' && dbUser.role !== 'manager')) {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Middleware to check if user has strict admin role (for employee management only)
+export const requireStrictAdmin: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+  
+  if (!user || !user.claims) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.role !== 'admin') {
+      return res.status(403).json({ message: "Forbidden: Admin-only access required" });
     }
     next();
   } catch (error) {

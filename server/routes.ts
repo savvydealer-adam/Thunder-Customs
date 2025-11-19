@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
-import { setupAuth, isAuthenticated, requireAdmin } from "./replitAuth";
+import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin } from "./replitAuth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -20,12 +20,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Auth routes - returns envelope with user (null for unauthenticated)
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
+      // If not authenticated, return null user in envelope
+      if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+        return res.json({ user: null });
+      }
+      
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      res.json({ user });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -183,8 +188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User management routes (admin only)
-  app.get("/api/users", isAuthenticated, requireAdmin, async (_req, res) => {
+  // User management routes (strict admin only - employee management)
+  app.get("/api/users", isAuthenticated, requireStrictAdmin, async (_req, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -194,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/users/:id/role", isAuthenticated, requireAdmin, async (req, res) => {
+  app.patch("/api/users/:id/role", isAuthenticated, requireStrictAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { role } = req.body;
@@ -204,6 +209,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateUserRole(id, role);
+      
+      // If updating current user's role, force session regeneration
+      if (req.user?.claims?.sub === id) {
+        req.session.destroy((err: any) => {
+          if (err) {
+            console.error("Error destroying session:", err);
+          }
+        });
+        return res.status(200).json({ 
+          success: true, 
+          message: "Role updated. Please log in again." 
+        });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating user role:", error);

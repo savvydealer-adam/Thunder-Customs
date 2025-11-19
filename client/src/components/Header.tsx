@@ -17,7 +17,7 @@ import {
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin, isStrictAdmin } = useAuth();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     if (!firstName && !lastName) return "U";
@@ -100,7 +100,7 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {isAdmin && (
+                  {isStrictAdmin && (
                     <>
                       <DropdownMenuItem asChild>
                         <Link href="/employees">

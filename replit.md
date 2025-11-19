@@ -4,7 +4,7 @@
 
 **✅ PRODUCTION-READY** (November 19, 2025)
 
-The Thunder Customs e-commerce platform is fully functional with complete product catalog imported. Successfully imported **7,196 products** across **22 vehicle makes** from HTML-wrapped XLS files.
+The Thunder Customs e-commerce platform is fully functional with complete product catalog and employee authentication system. Successfully imported **7,196 products** across **22 vehicle makes** from HTML-wrapped XLS files.
 
 **Current Capabilities:**
 - ✅ Complete frontend with Thunder Customs branding (Blue #1E90FF, Yellow #FFD700, Red #DC143C)
@@ -19,6 +19,9 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ Database upsert logic updates all mutable fields for data freshness
 - ✅ **ALL 35 vehicle make files imported** - Complete catalog ready!
 - ✅ **Professional branded placeholder images** for all 7,196 products (Thunder Customs blue with manufacturer/part info)
+- ✅ **Employee authentication system** with Replit Auth integration
+- ✅ **Role-based access control** (admin, manager, staff roles)
+- ✅ **Protected admin routes** for product management and employee management
 
 **Imported Product Catalog:**
 - **22 Vehicle Makes** with **7,196 Total Products**
@@ -75,8 +78,33 @@ Preferred communication style: Simple, everyday language.
 **Server Framework**
 - Express.js with TypeScript for API routes and middleware
 - Custom logging middleware for request/response tracking
-- Session management prepared (connect-pg-simple imported but not yet implemented)
+- Session management with PostgreSQL store (connect-pg-simple)
 - File upload support via Multer (configured for memory storage)
+
+**Authentication & Authorization**
+- **Provider**: Replit Auth (OpenID Connect) for secure employee login
+- **Session Management**: PostgreSQL-backed sessions with 7-day TTL
+- **Cookie Security**: Environment-aware (secure in production, HTTP-friendly in development)
+- **Role-Based Access Control (RBAC)**:
+  * **Admin**: Full access including employee management
+  * **Manager**: Can manage products and import data, but cannot manage employees
+  * **Staff**: Basic access (default role for new users, no admin features)
+
+**Authentication Middleware**:
+- `isAuthenticated`: Verifies user session and handles token refresh
+- `requireAdmin`: Allows admin OR manager (for product management)
+- `requireStrictAdmin`: Allows admin ONLY (for employee management)
+
+**Auth Routes**:
+- `GET /api/auth/user` - Returns current authenticated user
+- `GET /api/login` - Initiates Replit Auth login flow
+- `GET /api/callback` - OAuth callback handler
+- `GET /api/logout` - Destroys session and redirects to Replit logout
+
+**Protected Routes**:
+- Product import endpoints (`/api/admin/import-*`): Require admin OR manager role
+- User management endpoints (`/api/users/*`): Require strict admin role
+- All admin routes query database for current role on every request (no stale session issues)
 
 **API Design**
 - RESTful API endpoints under `/api` prefix
