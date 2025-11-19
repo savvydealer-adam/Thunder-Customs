@@ -1,10 +1,12 @@
 import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import logoUrl from "@assets/Thunder Customs Logo TRANSPARENT_1763572622278.png";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/contexts/CartContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -18,6 +20,8 @@ import {
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const { user, isAuthenticated, isAdmin, isStrictAdmin } = useAuth();
+  const { getTotalItems } = useCart();
+  const cartItemCount = getTotalItems();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     if (!firstName && !lastName) return "U";
@@ -62,9 +66,20 @@ export function Header() {
               </Link>
             )}
             
-            <Button variant="ghost" size="icon" className="hidden sm:flex" data-testid="button-cart">
-              <ShoppingCart className="h-5 w-5" />
-            </Button>
+            <Link href="/cart">
+              <Button variant="ghost" size="icon" className="relative hidden sm:flex" data-testid="button-cart">
+                <ShoppingCart className="h-5 w-5" />
+                {cartItemCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                    data-testid="badge-cart-count"
+                  >
+                    {cartItemCount}
+                  </Badge>
+                )}
+              </Button>
+            </Link>
 
             {isAuthenticated && user ? (
               <DropdownMenu>
