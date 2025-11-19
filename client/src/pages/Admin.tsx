@@ -7,27 +7,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, CheckCircle, AlertCircle, FileText } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export default function Admin() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      return await apiRequest('POST', '/api/admin/import-csv', formData);
+      return await apiRequest('POST', '/api/admin/import-batch', formData) as unknown as {
+        success: boolean;
+        totalImported: number;
+        filesProcessed: number;
+        totalFiles: number;
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       toast({
         title: "Import Successful",
-        description: `Imported ${data.imported} products successfully.`,
+        description: `Imported ${data.totalImported} products from ${data.filesProcessed} file(s).`,
       });
-      setFile(null);
+      setFiles([]);
       setUploadProgress(100);
     },
     onError: (error: Error) => {
@@ -40,22 +46,56 @@ export default function Admin() {
     },
   });
 
+  const imageSourceMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/admin/populate-images', {}) as unknown as {
+        success: boolean;
+        updated: number;
+        total: number;
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({
+        title: "Image Sourcing Complete",
+        description: `Updated ${data.updated} product images.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Image Sourcing Failed",
+        description: error.message || "Failed to populate images. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length > 0) {
+      setFiles(selectedFiles);
       setUploadProgress(0);
     }
   };
 
+  const removeFile = (index: number) => {
+    setFiles(files.filter((_, i) => i !== index));
+  };
+
   const handleUpload = async () => {
-    if (!file) return;
+    if (files.length === 0) return;
 
     const formData = new FormData();
-    formData.append('file', file);
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
 
     setUploadProgress(10);
     uploadMutation.mutate(formData);
+  };
+
+  const handlePopulateImages = () => {
+    imageSourceMutation.mutate();
   };
 
   return (
@@ -76,15 +116,15 @@ export default function Admin() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5" />
-                  Import Products from CSV
+                  Batch Import Products
                 </CardTitle>
                 <CardDescription>
-                  Upload CSV or HTML files exported from the parts catalog system
+                  Upload multiple CSV or HTML files exported from the parts catalog system
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="csv-file">Select File</Label>
+                  <Label htmlFor="csv-file">Select Files (Multiple)</Label>
                   <Input
                     id="csv-file"
                     type="file"
@@ -93,12 +133,37 @@ export default function Admin() {
                     disabled={uploadMutation.isPending}
                     className="mt-2"
                     data-testid="input-file"
+                    multiple
                   />
-                  {file && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      <span>{file.name}</span>
-                      <span className="text-xs">({(file.size / 1024).toFixed(2)} KB)</span>
+                  {files.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{files.length} file(s) selected</span>
+                        <Badge variant="secondary">{(files.reduce((sum, f) => sum + f.size, 0) / 1024).toFixed(2)} KB total</Badge>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2">
+                        {files.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between gap-2 text-sm bg-muted/50 rounded px-2 py-1.5">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <FileText className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{file.name}</span>
+                              <span className="text-xs text-muted-foreground flex-shrink-0">
+                                ({(file.size / 1024).toFixed(2)} KB)
+                              </span>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => removeFile(index)}
+                              disabled={uploadMutation.isPending}
+                              className="h-6 w-6 flex-shrink-0"
+                              data-testid={`button-remove-file-${index}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -130,11 +195,11 @@ export default function Admin() {
 
                 <Button
                   onClick={handleUpload}
-                  disabled={!file || uploadMutation.isPending}
+                  disabled={files.length === 0 || uploadMutation.isPending}
                   className="w-full"
                   data-testid="button-upload"
                 >
-                  {uploadMutation.isPending ? "Importing..." : "Import Products"}
+                  {uploadMutation.isPending ? "Importing..." : `Import ${files.length} File(s)`}
                 </Button>
 
                 <div className="text-sm text-muted-foreground space-y-2 pt-4 border-t">
@@ -149,6 +214,44 @@ export default function Admin() {
                     manufacturers, categories, part numbers, and vehicle compatibility.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  Auto-Populate Product Images
+                </CardTitle>
+                <CardDescription>
+                  Automatically search and populate images for products without images
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  This feature searches the internet for high-quality product images based on 
+                  part names and manufacturers, then automatically populates the imageUrl field 
+                  for products that don't have images yet.
+                </p>
+                
+                <Button
+                  onClick={handlePopulateImages}
+                  disabled={imageSourceMutation.isPending}
+                  className="w-full"
+                  variant="secondary"
+                  data-testid="button-populate-images"
+                >
+                  {imageSourceMutation.isPending ? "Populating Images..." : "Populate Missing Images"}
+                </Button>
+
+                {imageSourceMutation.isSuccess && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Product images updated successfully!
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 

@@ -1,12 +1,14 @@
 import { products, categories, manufacturers, vehicleMakes, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake } from "@shared/schema";
 import { db } from "./db";
-import { eq, ilike, and, or, inArray, sql } from "drizzle-orm";
+import { eq, ilike, and, or, inArray, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; search?: string }): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(products: InsertProduct[]): Promise<Product[]>;
+  getProductsWithoutImages(): Promise<Product[]>;
+  updateProductImage(id: number, imageUrl: string): Promise<void>;
   getCategories(): Promise<Category[]>;
   getManufacturers(): Promise<Manufacturer[]>;
   getVehicleMakes(): Promise<VehicleMake[]>;
@@ -96,6 +98,26 @@ export class DatabaseStorage implements IStorage {
 
   async getVehicleMakes(): Promise<VehicleMake[]> {
     return await db.select().from(vehicleMakes);
+  }
+
+  async getProductsWithoutImages(): Promise<Product[]> {
+    return await db
+      .select()
+      .from(products)
+      .where(
+        or(
+          isNull(products.imageUrl),
+          eq(products.imageUrl, '')
+        )
+      )
+      .limit(100);
+  }
+
+  async updateProductImage(id: number, imageUrl: string): Promise<void> {
+    await db
+      .update(products)
+      .set({ imageUrl, updatedAt: new Date() })
+      .where(eq(products.id, id));
   }
 }
 
