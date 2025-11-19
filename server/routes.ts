@@ -183,6 +183,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User management routes (admin only)
+  app.get("/api/users", isAuthenticated, requireAdmin, async (_req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/users/:id/role", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      if (!role || !['admin', 'manager', 'staff'].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      await storage.updateUserRole(id, role);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

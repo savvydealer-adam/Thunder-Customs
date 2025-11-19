@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,11 @@ import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon } from "lucide
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { Redirect } from "wouter";
 
 export default function Admin() {
+  const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const queryClient = useQueryClient();
@@ -98,9 +100,20 @@ export default function Admin() {
     imageSourceMutation.mutate();
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return <Redirect to="/" />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
       
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
