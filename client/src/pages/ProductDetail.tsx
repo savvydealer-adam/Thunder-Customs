@@ -1,17 +1,23 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShoppingCart, ArrowLeft, AlertCircle, Package, Tag, Factory } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ShoppingCart, ArrowLeft, AlertCircle, Package, Tag, Factory, Plus, Minus } from "lucide-react";
+import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/hooks/use-toast";
 import type { Product } from "@shared/schema";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/products/:id");
   const productId = params?.id;
+  const [quantity, setQuantity] = useState(1);
+  const { addToCart } = useCart();
+  const { toast } = useToast();
 
   const { data: product, isLoading, error } = useQuery<Product>({
     queryKey: ['/api/products', productId],
@@ -20,10 +26,28 @@ export default function ProductDetail() {
 
   const price = product?.price ? parseFloat(product.price) : null;
 
+  const handleAddToCart = () => {
+    if (!product) return;
+    
+    addToCart(product, quantity);
+    toast({
+      title: "Added to cart",
+      description: `${quantity} × ${product.partName} added to your shopping list`,
+    });
+    setQuantity(1);
+  };
+
+  const incrementQuantity = () => setQuantity(q => q + 1);
+  const decrementQuantity = () => setQuantity(q => Math.max(1, q - 1));
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value) && value > 0) {
+      setQuantity(value);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
-      
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <Link href="/products">
@@ -152,10 +176,45 @@ export default function ProductDetail() {
                   </div>
                 )}
 
-                <Button size="lg" className="gap-2 w-full md:w-auto" data-testid="button-add-to-cart">
-                  <ShoppingCart className="h-5 w-5" />
-                  Add to Cart
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={decrementQuantity}
+                      disabled={quantity <= 1}
+                      data-testid="button-decrease-quantity"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={handleQuantityChange}
+                      className="w-20 text-center"
+                      data-testid="input-quantity"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={incrementQuantity}
+                      data-testid="button-increase-quantity"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <Button 
+                    size="lg" 
+                    className="gap-2 w-full sm:w-auto flex-1 sm:flex-initial" 
+                    onClick={handleAddToCart}
+                    data-testid="button-add-to-cart"
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    Add to Cart
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
