@@ -22,6 +22,9 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ **Employee authentication system** with Replit Auth integration
 - ✅ **Role-based access control** (admin, manager, staff roles)
 - ✅ **Protected admin routes** for product management and employee management
+- ✅ **Shopping cart system** with localStorage persistence for anonymous users
+- ✅ **PDF download** - Generate professional Thunder Customs branded shopping lists
+- ✅ **Print-friendly** cart page for in-store purchasing workflow
 
 **Imported Product Catalog:**
 - **22 Vehicle Makes** with **7,196 Total Products**
@@ -177,6 +180,15 @@ All reference tables use auto-incrementing IDs and enforce unique constraints on
 - Single filter enforcement: Only one category OR one manufacturer OR one vehicle make can be applied at a time
 - Dynamic URL building based on active filters
 - Automatic query invalidation on product mutations (CSV import)
+
+**Shopping Cart System**
+- **Client-Side Storage**: Cart state managed via React Context (CartContext) with localStorage persistence
+- **Anonymous Users**: Cart items stored in localStorage with key "thunder-customs-cart"
+- **Cart Operations**: addToCart(product, quantity), updateQuantity(productId, quantity), removeFromCart(productId), clearCart(), getTotalItems()
+- **Automatic Cleanup**: Items with quantity <= 0 are automatically removed from cart
+- **PDF Export**: Client-side PDF generation using jsPDF + autoTable with Thunder Customs branding
+- **Print Support**: Print-friendly CSS styles hide navigation/buttons and format cart for paper output
+- **Future Enhancement**: Database schema includes `cartItems` table for authenticated user cart persistence (not yet implemented)
 
 ## External Dependencies
 
