@@ -26,10 +26,10 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
-      <div className="container mx-auto px-4">
-        <div className="flex h-20 items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3" data-testid="link-home">
-            <img src={logoUrl} alt="Thunder Customs" className="h-14 w-auto" />
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3 shrink-0" data-testid="link-home">
+            <img src={logoUrl} alt="Thunder Customs" className="h-12 w-auto" />
           </Link>
 
           <div className="hidden flex-1 max-w-2xl lg:flex">
@@ -38,7 +38,7 @@ export function Header() {
               <Input
                 type="search"
                 placeholder="Search parts by name, part number, or category..."
-                className="pl-10 pr-4 h-11"
+                className="pl-10 pr-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 data-testid="input-search"
@@ -46,15 +46,15 @@ export function Header() {
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-2">
-            <Link href="/products">
+          <nav className="flex items-center gap-2">
+            <Link href="/products" className="hidden sm:block">
               <Button variant="ghost" data-testid="button-shop">
                 Shop Parts
               </Button>
             </Link>
             
             {isAdmin && (
-              <Link href="/admin">
+              <Link href="/admin" className="hidden sm:block">
                 <Button variant="ghost" data-testid="button-admin">
                   <Shield className="w-4 h-4 mr-2" />
                   Admin
@@ -62,7 +62,7 @@ export function Header() {
               </Link>
             )}
             
-            <Button variant="ghost" size="icon" data-testid="button-cart">
+            <Button variant="ghost" size="icon" className="hidden sm:flex" data-testid="button-cart">
               <ShoppingCart className="h-5 w-5" />
             </Button>
 
@@ -127,25 +127,11 @@ export function Header() {
                 </a>
               </Button>
             )}
+
+            <Button variant="ghost" size="icon" className="sm:hidden" data-testid="button-menu">
+              <Menu className="h-6 w-6" />
+            </Button>
           </nav>
-
-          <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-menu">
-            <Menu className="h-6 w-6" />
-          </Button>
-        </div>
-
-        <div className="lg:hidden pb-4">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search parts..."
-              className="pl-10 pr-4 h-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="input-search-mobile"
-            />
-          </div>
         </div>
       </div>
     </header>
