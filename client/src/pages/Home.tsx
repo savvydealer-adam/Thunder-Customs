@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Package, Shield, Truck, Wrench } from "lucide-react";
-import ramTruckImage from "@assets/stock_images/ram_pickup_truck_lif_35a6bdf0.jpg";
+import ramTruckImage from "@assets/stock_images/2026_ram_1500_pickup_e9c79107.jpg";
 import jeepImage from "@assets/stock_images/lifted_jeep_wrangler_784916fe.jpg";
 
 export default function Home() {
