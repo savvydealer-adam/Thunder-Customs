@@ -9,19 +9,25 @@ The Thunder Customs e-commerce platform is fully functional and verified with re
 **Current Capabilities:**
 - ✅ Complete frontend with Thunder Customs branding (Blue #1E90FF, Yellow #FFD700, Red #DC143C)
 - ✅ Product browsing with filters (category, manufacturer, vehicle make)
-- ✅ Admin CSV/XLS import interface
+- ✅ Batch upload admin interface (import multiple XLS files simultaneously)
 - ✅ Database schema supporting CSV imports and future MOPAR API integration
 - ✅ Robust HTML-wrapped XLS parser with vehicle make extraction
 - ✅ Database upsert logic updates all mutable fields for data freshness
+- ✅ Automated product image sourcing via Unsplash API with rate limiting
+- ✅ 35 vehicle make files ready for batch import (Honda through Volvo)
+
+**Available Files for Import:**
+- Acura (✅ imported - 342 products)
+- BMW, Buick, Cadillac, Chevrolet, Chrysler, Dodge, Fiat, Ford, Genesis, GMC, Honda, Hyundai, Infiniti, Jeep, Kia, Lexus, Lincoln, Mazda, Mercedes-Benz, Mini, Mitsubishi, Nissan, Ram, Scion, Smart, Subaru, Tesla, Toyota, Volkswagen, Volvo
 
 **Next Steps:**
-1. Import remaining 11+ OEM vehicle make files to populate full catalog
-2. Add regression tests for import pipeline
-3. Final UX polish and content population before launch
+1. Configure UNSPLASH_ACCESS_KEY for automated image sourcing
+2. Batch import all 35 vehicle make files to populate complete catalog
+3. Run image population to auto-source product images
 4. MOPAR API integration when credentials become available
 
 **Quick Start:**
-- Visit `/admin` to import XLS files
+- Visit `/admin` to batch import XLS files
 - Browse products at `/products`
 - Filter by vehicle make, category, or manufacturer
 
@@ -68,6 +74,8 @@ Preferred communication style: Simple, everyday language.
 - Product filtering by category, manufacturer, vehicle make, and search query
 - CRUD operations for products (read operations implemented, create prepared)
 - Separate routes for categories, manufacturers, and vehicle makes
+- Batch import endpoint (`/api/admin/import-batch`) supports multiple file uploads
+- Image population endpoint (`/api/admin/populate-images`) auto-sources product images
 
 **Data Access Layer**
 - Storage abstraction through `IStorage` interface for future flexibility
@@ -125,6 +133,7 @@ All reference tables use auto-incrementing IDs and enforce unique constraints on
 ### Database & Infrastructure
 - **Neon Serverless PostgreSQL**: Serverless PostgreSQL database with WebSocket connection pooling
 - **Environment Variables**: `DATABASE_URL` required for database connection
+- **Unsplash API**: Image sourcing service for automatic product image population (requires `UNSPLASH_ACCESS_KEY`)
 
 ### UI & Styling
 - **Radix UI**: Headless accessible component primitives (@radix-ui/react-*)
