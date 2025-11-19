@@ -7,37 +7,11 @@ import { InsertProduct } from "@shared/schema";
 const upload = multer({ storage: multer.memoryStorage() });
 
 async function searchProductImage(partName: string, manufacturer: string): Promise<string | null> {
-  try {
-    const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
-    
-    if (!unsplashKey) {
-      console.log('UNSPLASH_ACCESS_KEY not configured, using placeholder images');
-      return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${encodeURIComponent(manufacturer.substring(0, 15))}`;
-    }
-    
-    const searchQuery = `${manufacturer} ${partName} automotive part`;
-    const response = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchQuery)}&per_page=1&orientation=landscape`, {
-      headers: {
-        'Authorization': `Client-ID ${unsplashKey}`
-      }
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Unsplash API error (${response.status}): ${errorText}`);
-      return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${encodeURIComponent(manufacturer.substring(0, 15))}`;
-    }
-    
-    const data = await response.json();
-    if (data.results && data.results.length > 0) {
-      return data.results[0].urls.regular;
-    }
-    
-    return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${encodeURIComponent(manufacturer.substring(0, 15))}`;
-  } catch (error) {
-    console.error('Error searching for product image:', error);
-    return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${encodeURIComponent(manufacturer.substring(0, 15))}`;
-  }
+  const manufacturerText = manufacturer.substring(0, 20);
+  const partText = partName.substring(0, 25);
+  const displayText = `${manufacturerText}+%0A${partText}`;
+  
+  return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${displayText}&font=raleway`;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
