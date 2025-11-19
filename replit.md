@@ -8,6 +8,10 @@ The Thunder Customs e-commerce platform is fully functional and verified with re
 
 **Current Capabilities:**
 - ✅ Complete frontend with Thunder Customs branding (Blue #1E90FF, Yellow #FFD700, Red #DC143C)
+- ✅ Enhanced visual design with background images (lifted Jeep Wranglers, Ram trucks)
+- ✅ Prominent Thunder Customs logo display on hero section
+- ✅ Vehicle showcase section with interactive hover effects
+- ✅ Clean, engaging layout with gradient backgrounds
 - ✅ Product browsing with filters (category, manufacturer, vehicle make)
 - ✅ Batch upload admin interface (import multiple XLS files simultaneously)
 - ✅ Database schema supporting CSV imports and future MOPAR API integration
@@ -60,6 +64,11 @@ Preferred communication style: Simple, everyday language.
 - Typography system using Inter/Roboto fonts (via Google Fonts CDN) with optional Bebas Neue for headers
 - Shadcn's "New York" style preset with custom border radius and spacing values
 - Design guidelines inspired by automotive e-commerce leaders (Shopify, Amazon, RockAuto)
+- Thunder Customs branding prominently featured with large logo on hero section
+- Background imagery: Lifted Jeep Wranglers and Ram trucks for automotive appeal
+- Dark gradient overlays on images for text readability
+- Elevation-based hover effects (hover-elevate, active-elevate-2 utilities)
+- Gradient backgrounds on Products page for visual interest without compromising readability
 
 ### Backend Architecture
 
