@@ -1,0 +1,182 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Header } from "@/components/Header";
+import { ProductCard } from "@/components/ProductCard";
+import { ProductFilters } from "@/components/ProductFilters";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import type { Product } from "@shared/schema";
+
+export default function Products() {
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedManufacturers, setSelectedManufacturers] = useState<string[]>([]);
+  const [selectedVehicleMakes, setSelectedVehicleMakes] = useState<string[]>([]);
+
+  const buildFilteredUrl = () => {
+    const params = new URLSearchParams();
+    if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
+    if (selectedManufacturers.length === 1) params.set('manufacturer', selectedManufacturers[0]);
+    if (selectedVehicleMakes.length === 1) params.set('vehicleMake', selectedVehicleMakes[0]);
+    const query = params.toString();
+    return query ? `/api/products?${query}` : '/api/products';
+  };
+
+  const hasSingleFilter = 
+    (selectedCategories.length === 1 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0) ||
+    (selectedCategories.length === 0 && selectedManufacturers.length === 1 && selectedVehicleMakes.length === 0) ||
+    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 1);
+
+  const { data: products, isLoading, error } = useQuery<Product[]>({
+    queryKey: [buildFilteredUrl()],
+  });
+
+  const handleCategoryChange = (category: string, checked: boolean) => {
+    setSelectedCategories(prev =>
+      checked ? [...prev, category] : prev.filter(c => c !== category)
+    );
+  };
+
+  const handleManufacturerChange = (manufacturer: string, checked: boolean) => {
+    setSelectedManufacturers(prev =>
+      checked ? [...prev, manufacturer] : prev.filter(m => m !== manufacturer)
+    );
+  };
+
+  const handleVehicleMakeChange = (make: string, checked: boolean) => {
+    setSelectedVehicleMakes(prev =>
+      checked ? [...prev, make] : prev.filter(m => m !== make)
+    );
+  };
+
+  const handleClearAll = () => {
+    setSelectedCategories([]);
+    setSelectedManufacturers([]);
+    setSelectedVehicleMakes([]);
+  };
+
+  const filteredProducts = products?.filter(product => {
+    if (!hasSingleFilter) {
+      if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) {
+        return false;
+      }
+      if (selectedManufacturers.length > 0 && !selectedManufacturers.includes(product.manufacturer)) {
+        return false;
+      }
+      if (selectedVehicleMakes.length > 0 && product.vehicleMake && !selectedVehicleMakes.includes(product.vehicleMake)) {
+        return false;
+      }
+    }
+    if (product.isHidden) {
+      return false;
+    }
+    return true;
+  }) || [];
+
+  const categories = Array.from(new Set(products?.map(p => p.category) || []))
+    .filter(Boolean)
+    .sort()
+    .map(cat => ({
+      value: cat,
+      label: cat,
+      count: products?.filter(p => p.category === cat && !p.isHidden).length || 0,
+    }));
+
+  const manufacturers = Array.from(new Set(products?.map(p => p.manufacturer) || []))
+    .filter(Boolean)
+    .sort()
+    .map(mfr => ({
+      value: mfr,
+      label: mfr,
+      count: products?.filter(p => p.manufacturer === mfr && !p.isHidden).length || 0,
+    }));
+
+  const vehicleMakes = Array.from(new Set(products?.map(p => p.vehicleMake).filter(Boolean) || []))
+    .sort()
+    .map(make => ({
+      value: make!,
+      label: make!,
+      count: products?.filter(p => p.vehicleMake === make && !p.isHidden).length || 0,
+    }));
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2">Shop Parts</h1>
+            <p className="text-muted-foreground">
+              Browse our complete catalog of automotive accessories
+            </p>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-8">
+            <aside className="lg:w-80 flex-shrink-0">
+              <div className="lg:sticky lg:top-24">
+                <ProductFilters
+                  categories={categories}
+                  manufacturers={manufacturers}
+                  vehicleMakes={vehicleMakes}
+                  selectedCategories={selectedCategories}
+                  selectedManufacturers={selectedManufacturers}
+                  selectedVehicleMakes={selectedVehicleMakes}
+                  onCategoryChange={handleCategoryChange}
+                  onManufacturerChange={handleManufacturerChange}
+                  onVehicleMakeChange={handleVehicleMakeChange}
+                  onClearAll={handleClearAll}
+                />
+              </div>
+            </aside>
+
+            <div className="flex-1">
+              {error && (
+                <Alert variant="destructive" className="mb-6">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Failed to load products. Please try again later.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="mb-6 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {isLoading ? (
+                    "Loading products..."
+                  ) : (
+                    `Showing ${filteredProducts.length} products`
+                  )}
+                </p>
+              </div>
+
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="space-y-4">
+                      <Skeleton className="aspect-square w-full" />
+                      <Skeleton className="h-6 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <p className="text-muted-foreground">
+                    No products found matching your filters.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

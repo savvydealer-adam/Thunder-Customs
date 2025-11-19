@@ -1,38 +1,102 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { products, categories, manufacturers, vehicleMakes, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake } from "@shared/schema";
+import { db } from "./db";
+import { eq, ilike, and, or, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; search?: string }): Promise<Product[]>;
+  getProduct(id: number): Promise<Product | undefined>;
+  createProduct(product: InsertProduct): Promise<Product>;
+  createProducts(products: InsertProduct[]): Promise<Product[]>;
+  getCategories(): Promise<Category[]>;
+  getManufacturers(): Promise<Manufacturer[]>;
+  getVehicleMakes(): Promise<VehicleMake[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export class DatabaseStorage implements IStorage {
+  async getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; search?: string }): Promise<Product[]> {
+    const conditions = [];
+    
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
+    }
+    if (filters?.manufacturer) {
+      conditions.push(eq(products.manufacturer, filters.manufacturer));
+    }
+    if (filters?.vehicleMake) {
+      conditions.push(eq(products.vehicleMake, filters.vehicleMake));
+    }
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(products.partName, `%${filters.search}%`),
+          ilike(products.partNumber, `%${filters.search}%`),
+          ilike(products.category, `%${filters.search}%`)
+        )
+      );
+    }
 
-  constructor() {
-    this.users = new Map();
+    const query = conditions.length > 0 
+      ? db.select().from(products).where(and(...conditions))
+      : db.select().from(products);
+
+    return await query;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getProduct(id: number): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.id, id));
+    return product || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createProduct(insertProduct: InsertProduct): Promise<Product> {
+    const [product] = await db
+      .insert(products)
+      .values(insertProduct)
+      .returning();
+    return product;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createProducts(insertProducts: InsertProduct[]): Promise<Product[]> {
+    if (insertProducts.length === 0) return [];
+    
+    const createdProducts = await db
+      .insert(products)
+      .values(insertProducts)
+      .onConflictDoUpdate({
+        target: products.partNumber,
+        set: {
+          partName: sql`excluded.part_name`,
+          manufacturer: sql`excluded.manufacturer`,
+          category: sql`excluded.category`,
+          vehicleMake: sql`excluded.vehicle_make`,
+          supplier: sql`excluded.supplier`,
+          creator: sql`excluded.creator`,
+          description: sql`excluded.description`,
+          price: sql`excluded.price`,
+          cost: sql`excluded.cost`,
+          imageUrl: sql`excluded.image_url`,
+          stockQuantity: sql`excluded.stock_quantity`,
+          dataSource: sql`excluded.data_source`,
+          isHidden: sql`excluded.is_hidden`,
+          isPopular: sql`excluded.is_popular`,
+          updatedAt: new Date(),
+        }
+      })
+      .returning();
+    
+    return createdProducts;
+  }
+
+  async getCategories(): Promise<Category[]> {
+    return await db.select().from(categories);
+  }
+
+  async getManufacturers(): Promise<Manufacturer[]> {
+    return await db.select().from(manufacturers);
+  }
+
+  async getVehicleMakes(): Promise<VehicleMake[]> {
+    return await db.select().from(vehicleMakes);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
