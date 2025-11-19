@@ -100,17 +100,20 @@ export default function Products() {
     }));
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-muted/10 to-background">
       <Header />
       
       <main className="flex-1">
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Shop Parts</h1>
-            <p className="text-muted-foreground">
+        <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b">
+          <div className="container mx-auto px-4 py-12">
+            <h1 className="text-4xl md:text-5xl font-bold mb-3">Shop Parts</h1>
+            <p className="text-muted-foreground text-lg">
               Browse our complete catalog of automotive accessories
             </p>
           </div>
+        </div>
+
+        <div className="container mx-auto px-4 py-8">
 
           <div className="flex flex-col lg:flex-row gap-8">
             <aside className="lg:w-80 flex-shrink-0">

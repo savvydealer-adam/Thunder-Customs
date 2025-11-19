@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Package, Shield, Truck, Wrench } from "lucide-react";
+import ramTruckImage from "@assets/stock_images/ram_pickup_truck_lif_35a6bdf0.jpg";
+import jeepImage from "@assets/stock_images/lifted_jeep_wrangler_784916fe.jpg";
 
 export default function Home() {
   const features = [
@@ -64,7 +66,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-16">
+        <section className="py-16 bg-gradient-to-b from-background to-muted/20">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -95,6 +97,54 @@ export default function Home() {
                   View All Products
                 </Button>
               </Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 lg:py-24">
+          <div className="container mx-auto px-4">
+            <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+              <div className="relative overflow-visible rounded-md hover-elevate active-elevate-2">
+                <div 
+                  className="h-80 lg:h-96 bg-cover bg-center rounded-md"
+                  style={{ backgroundImage: `url(${ramTruckImage})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent rounded-md" />
+                <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                    Truck Accessories
+                  </h3>
+                  <p className="text-white/90 mb-4 text-sm md:text-base">
+                    Lift kits, bed liners, step bars, and more for Ram, Ford, Chevy trucks
+                  </p>
+                  <Link href="/products?vehicleMake=Ram">
+                    <Button variant="outline" className="border-white/30 text-white backdrop-blur-sm" data-testid="button-shop-ram">
+                      Shop Ram Parts
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="relative overflow-visible rounded-md hover-elevate active-elevate-2">
+                <div 
+                  className="h-80 lg:h-96 bg-cover bg-center rounded-md"
+                  style={{ backgroundImage: `url(${jeepImage})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent rounded-md" />
+                <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                    Off-Road Gear
+                  </h3>
+                  <p className="text-white/90 mb-4 text-sm md:text-base">
+                    Lift kits, rock sliders, winches, and trail-ready upgrades for Jeep Wranglers
+                  </p>
+                  <Link href="/products?vehicleMake=Jeep">
+                    <Button variant="outline" className="border-white/30 text-white backdrop-blur-sm" data-testid="button-shop-jeep">
+                      Shop Jeep Parts
+                    </Button>
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </section>
