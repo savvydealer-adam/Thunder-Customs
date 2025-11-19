@@ -81,30 +81,43 @@ Preferred communication style: Simple, everyday language.
 - Session management with PostgreSQL store (connect-pg-simple)
 - File upload support via Multer (configured for memory storage)
 
-**Authentication & Authorization**
+**Authentication & Authorization** ✅ **FULLY TESTED & PRODUCTION-READY**
 - **Provider**: Replit Auth (OpenID Connect) for secure employee login
 - **Session Management**: PostgreSQL-backed sessions with 7-day TTL
 - **Cookie Security**: Environment-aware (secure in production, HTTP-friendly in development)
+- **API Envelope Pattern**: All auth endpoints return `{ user: User | null }` for type consistency
 - **Role-Based Access Control (RBAC)**:
   * **Admin**: Full access including employee management
   * **Manager**: Can manage products and import data, but cannot manage employees
   * **Staff**: Basic access (default role for new users, no admin features)
 
-**Authentication Middleware**:
+**Authentication Middleware** (server/replitAuth.ts):
 - `isAuthenticated`: Verifies user session and handles token refresh
 - `requireAdmin`: Allows admin OR manager (for product management)
 - `requireStrictAdmin`: Allows admin ONLY (for employee management)
 
 **Auth Routes**:
-- `GET /api/auth/user` - Returns current authenticated user
+- `GET /api/auth/user` - Returns `{ user: User | null }` envelope
 - `GET /api/login` - Initiates Replit Auth login flow
-- `GET /api/callback` - OAuth callback handler
+- `GET /api/callback` - OAuth callback handler, creates user with 'staff' role if new
 - `GET /api/logout` - Destroys session and redirects to Replit logout
 
-**Protected Routes**:
-- Product import endpoints (`/api/admin/import-*`): Require admin OR manager role
-- User management endpoints (`/api/users/*`): Require strict admin role
+**Protected Routes** (verified via E2E testing):
+- **Product Management** (`/api/admin/import-csv`, `/api/admin/import-batch`, `/api/admin/populate-images`): Use `requireAdmin` - allows admin OR manager
+- **Employee Management** (`/api/users`, `/api/users/:id/role`): Use `requireStrictAdmin` - allows admin ONLY
 - All admin routes query database for current role on every request (no stale session issues)
+
+**Frontend Auth Hook** (client/src/hooks/useAuth.ts):
+- Returns `{ user: User | null, isLoading, isAuthenticated, isAdmin, isStrictAdmin }`
+- `isAdmin`: true if role is 'admin' OR 'manager' (product management access)
+- `isStrictAdmin`: true if role is 'admin' ONLY (employee management access)
+
+**E2E Test Results** (Playwright verification):
+- ✅ Unauthenticated users: Redirected from protected pages, login button visible
+- ✅ Admin role: Full access to product management AND employee management
+- ✅ Manager role: Access to product management, blocked from employee management
+- ✅ Staff role: No access to admin features, redirected from all protected pages
+- ✅ Logout flow: Properly destroys session and returns to unauthenticated state
 
 **API Design**
 - RESTful API endpoints under `/api` prefix
