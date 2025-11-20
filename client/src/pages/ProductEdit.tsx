@@ -131,13 +131,26 @@ export default function ProductEdit() {
   };
 
   const onSubmit = (data: ProductUpdateForm) => {
-    // Normalize monetary fields to 2 decimal places
-    const normalizedData: ProductUpdateForm = {
-      ...data,
-      price: data.price && data.price !== "" ? parseFloat(data.price).toFixed(2) : undefined,
-      cost: data.cost && data.cost !== "" ? parseFloat(data.cost).toFixed(2) : undefined,
-      description: data.description && data.description !== "" ? data.description : undefined,
-    };
+    // Normalize monetary fields to 2 decimal places, use null for intentional clears
+    const normalizedData: any = {};
+    
+    // Handle price: normalize to 2 decimals or send null if cleared
+    if (data.price !== undefined) {
+      const trimmedPrice = data.price?.trim();
+      normalizedData.price = trimmedPrice && trimmedPrice !== "" ? parseFloat(trimmedPrice).toFixed(2) : null;
+    }
+    
+    // Handle cost: normalize to 2 decimals or send null if cleared
+    if (data.cost !== undefined) {
+      const trimmedCost = data.cost?.trim();
+      normalizedData.cost = trimmedCost && trimmedCost !== "" ? parseFloat(trimmedCost).toFixed(2) : null;
+    }
+    
+    // Handle description: send as-is or null if cleared
+    if (data.description !== undefined) {
+      const trimmedDesc = data.description?.trim();
+      normalizedData.description = trimmedDesc && trimmedDesc !== "" ? trimmedDesc : null;
+    }
     
     updateProductMutation.mutate(normalizedData);
   };

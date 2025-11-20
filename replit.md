@@ -25,6 +25,9 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ **Shopping cart system** with localStorage persistence for anonymous users
 - ✅ **PDF download** - Generate professional Thunder Customs branded shopping lists
 - ✅ **Print-friendly** cart page for in-store purchasing workflow
+- ✅ **Product editing system** - Admin/manager can edit MSRP, cost, description, and upload custom images
+- ✅ **MSRP display** - Customer-facing MSRP shown on product cards and detail pages (when pricing data is available)
+- ✅ **Stock quantity hidden** - Stock info not displayed to customers on product detail pages
 
 **Imported Product Catalog:**
 - **22 Vehicle Makes** with **7,196 Total Products**
@@ -32,9 +35,9 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - All makes: Acura, Buick, Cadillac, Chevrolet, Chrysler, Dodge, Ford, GMC, Honda, Infiniti, Jeep, KIA, Lexus, Lincoln, Mazda, Mitsubishi, Nissan, Ram, Subaru, Toyota, Volkswagen, Volvo
 
 **Next Steps:**
-1. Replace branded placeholders with real product images from supplier feeds
-2. MOPAR API integration when credentials become available
-3. Add pricing data to products
+1. Add pricing data to products using the admin product edit feature (`/products/:id/edit`)
+2. Replace branded placeholders with real product images from supplier feeds or upload custom images
+3. MOPAR API integration when credentials become available
 
 **Quick Start:**
 - Visit `/admin` to batch import XLS files

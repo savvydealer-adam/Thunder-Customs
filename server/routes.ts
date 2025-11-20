@@ -88,28 +88,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Validate input with Zod schema - enforce proper decimal format and trim/transform values
+      // Validate input with Zod schema - enforce proper decimal format and trim values
+      // Transform to distinguish between omitted (undefined) and cleared (empty string)
       const updateSchema = z.object({
-        price: z.string().optional()
-          .refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
+        price: z.union([z.string(), z.null()]).optional()
+          .refine((val) => val === null || !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
             message: "Price must be a valid decimal number (e.g., 99.99)",
           })
           .transform((val) => {
+            if (val === null) return null;
             const trimmed = val?.trim();
-            return trimmed && trimmed !== "" ? trimmed : undefined;
+            return trimmed || undefined;
           }),
-        cost: z.string().optional()
-          .refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
+        cost: z.union([z.string(), z.null()]).optional()
+          .refine((val) => val === null || !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
             message: "Cost must be a valid decimal number (e.g., 99.99)",
           })
           .transform((val) => {
+            if (val === null) return null;
             const trimmed = val?.trim();
-            return trimmed && trimmed !== "" ? trimmed : undefined;
+            return trimmed || undefined;
           }),
-        description: z.string().optional()
+        description: z.union([z.string(), z.null()]).optional()
           .transform((val) => {
+            if (val === null) return null;
             const trimmed = val?.trim();
-            return trimmed && trimmed !== "" ? trimmed : undefined;
+            return trimmed || undefined;
           }),
       });
       
@@ -123,16 +127,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { price, cost, description } = validationResult.data;
       
-      // Normalize monetary fields to canonical 2-decimal format
-      const updates: Partial<InsertProduct> = {};
-      if (price !== undefined && price !== "") {
-        updates.price = Number(price).toFixed(2);
+      // Normalize monetary fields to canonical 2-decimal format, allow null for clears
+      const updates: any = {};
+      if (price !== undefined) {
+        updates.price = price ? Number(price).toFixed(2) : null;
       }
-      if (cost !== undefined && cost !== "") {
-        updates.cost = Number(cost).toFixed(2);
+      if (cost !== undefined) {
+        updates.cost = cost ? Number(cost).toFixed(2) : null;
       }
       if (description !== undefined) {
-        updates.description = description;
+        updates.description = description || null;
       }
       
       const updatedProduct = await storage.updateProduct(parseInt(id), updates);
