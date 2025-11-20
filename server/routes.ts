@@ -148,6 +148,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate placeholder images for all products without images (no API key needed)
+  app.post("/api/admin/populate-placeholders", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const productsWithoutImages = await storage.getProductsWithoutImages();
+      
+      let updated = 0;
+      
+      for (const product of productsWithoutImages) {
+        try {
+          const imageUrl = await searchProductImage(product.partName, product.manufacturer);
+          if (imageUrl) {
+            await storage.updateProductImage(product.id, imageUrl);
+            updated++;
+          }
+        } catch (error) {
+          console.error(`Error processing image for product ${product.id}:`, error);
+        }
+      }
+      
+      res.json({
+        success: true,
+        updated,
+        total: productsWithoutImages.length,
+      });
+    } catch (error) {
+      console.error("Error populating placeholder images:", error);
+      res.status(500).json({ error: "Failed to populate placeholder images" });
+    }
+  });
+
   app.post("/api/admin/populate-images", isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!process.env.UNSPLASH_ACCESS_KEY) {
@@ -300,6 +330,12 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
       continue;
     }
 
+    // Generate placeholder image URL automatically
+    const manufacturerText = manufacturer.substring(0, 20);
+    const partText = partName.substring(0, 25);
+    const displayText = `${manufacturerText}+%0A${partText}`;
+    const placeholderImageUrl = `https://placehold.co/600x400/1E90FF/FFFFFF?text=${displayText}&font=raleway`;
+
     products.push({
       partNumber,
       partName,
@@ -314,7 +350,7 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
       description: undefined,
       price: undefined,
       cost: undefined,
-      imageUrl: undefined,
+      imageUrl: placeholderImageUrl,
       stockQuantity: 0,
     });
   }

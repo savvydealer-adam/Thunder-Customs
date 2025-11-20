@@ -48,6 +48,30 @@ export default function Admin() {
     },
   });
 
+  const placeholderImageMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/admin/populate-placeholders', {}) as {
+        success: boolean;
+        updated: number;
+        total: number;
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({
+        title: "Placeholder Images Added",
+        description: `Added Thunder Customs branded images to ${data.updated} products.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Add Images",
+        description: error.message || "Failed to populate placeholder images. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const imageSourceMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest('POST', '/api/admin/populate-images', {}) as {
@@ -94,6 +118,10 @@ export default function Admin() {
 
     setUploadProgress(10);
     uploadMutation.mutate(formData);
+  };
+
+  const handlePopulatePlaceholders = () => {
+    placeholderImageMutation.mutate();
   };
 
   const handlePopulateImages = () => {
@@ -234,28 +262,73 @@ export default function Admin() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ImageIcon className="h-5 w-5" />
-                  Auto-Populate Product Images
+                  Product Images
                 </CardTitle>
                 <CardDescription>
-                  Automatically search and populate images for products without images
+                  Add placeholder images or source real images from Unsplash
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  This feature searches the internet for high-quality product images based on 
-                  part names and manufacturers, then automatically populates the imageUrl field 
-                  for products that don't have images yet.
-                </p>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={handlePopulatePlaceholders}
+                  disabled={placeholderImageMutation.isPending}
+                  className="w-full"
+                  data-testid="button-populate-placeholders"
+                >
+                  {placeholderImageMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2" />
+                      Adding Placeholder Images...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      Add Placeholder Images
+                    </>
+                  )}
+                </Button>
                 
+                <div className="text-xs text-muted-foreground text-center">
+                  Creates branded Thunder Customs placeholders (no API key needed)
+                </div>
+
+                <div className="relative my-3">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+
                 <Button
                   onClick={handlePopulateImages}
                   disabled={imageSourceMutation.isPending}
                   className="w-full"
-                  variant="secondary"
+                  variant="outline"
                   data-testid="button-populate-images"
                 >
-                  {imageSourceMutation.isPending ? "Populating Images..." : "Populate Missing Images"}
+                  {imageSourceMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-foreground mr-2" />
+                      Sourcing Real Images...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      Source Real Images (Requires Unsplash API)
+                    </>
+                  )}
                 </Button>
+
+                {placeholderImageMutation.isSuccess && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Placeholder images added successfully!
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {imageSourceMutation.isSuccess && (
                   <Alert>
