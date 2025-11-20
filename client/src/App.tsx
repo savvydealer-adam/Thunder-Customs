@@ -8,6 +8,7 @@ import { Header } from "@/components/Header";
 import Home from "@/pages/Home";
 import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail";
+import ProductEdit from "@/pages/ProductEdit";
 import Cart from "@/pages/Cart";
 import Admin from "@/pages/Admin";
 import EmployeeManagement from "@/pages/EmployeeManagement";
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/products" component={Products} />
       <Route path="/products/:id" component={ProductDetail} />
+      <Route path="/products/:id/edit" component={ProductEdit} />
       <Route path="/cart" component={Cart} />
       <Route path="/admin" component={Admin} />
       <Route path="/employees" component={EmployeeManagement} />

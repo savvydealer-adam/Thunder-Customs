@@ -1,6 +1,7 @@
 // Reference: blueprint:javascript_log_in_with_replit
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { z } from "zod";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
@@ -81,6 +82,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Protected admin routes - require authentication and admin role
+  
+  // Update individual product (MSRP, cost, description)
+  app.patch("/api/admin/products/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Validate input with Zod schema - enforce proper decimal format and trim/transform values
+      const updateSchema = z.object({
+        price: z.string().optional()
+          .refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
+            message: "Price must be a valid decimal number (e.g., 99.99)",
+          })
+          .transform((val) => {
+            const trimmed = val?.trim();
+            return trimmed && trimmed !== "" ? trimmed : undefined;
+          }),
+        cost: z.string().optional()
+          .refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
+            message: "Cost must be a valid decimal number (e.g., 99.99)",
+          })
+          .transform((val) => {
+            const trimmed = val?.trim();
+            return trimmed && trimmed !== "" ? trimmed : undefined;
+          }),
+        description: z.string().optional()
+          .transform((val) => {
+            const trimmed = val?.trim();
+            return trimmed && trimmed !== "" ? trimmed : undefined;
+          }),
+      });
+      
+      const validationResult = updateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid input", 
+          details: validationResult.error.errors 
+        });
+      }
+      
+      const { price, cost, description } = validationResult.data;
+      
+      // Normalize monetary fields to canonical 2-decimal format
+      const updates: Partial<InsertProduct> = {};
+      if (price !== undefined && price !== "") {
+        updates.price = Number(price).toFixed(2);
+      }
+      if (cost !== undefined && cost !== "") {
+        updates.cost = Number(cost).toFixed(2);
+      }
+      if (description !== undefined) {
+        updates.description = description;
+      }
+      
+      const updatedProduct = await storage.updateProduct(parseInt(id), updates);
+      
+      if (!updatedProduct) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      res.json({ success: true, product: updatedProduct });
+    } catch (error) {
+      console.error("Error updating product:", error);
+      res.status(500).json({ error: "Failed to update product" });
+    }
+  });
+
+  // Upload product image
+  app.post("/api/admin/products/:id/image", isAuthenticated, requireAdmin, upload.single('image'), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No image file uploaded" });
+      }
+
+      // Convert the uploaded image to base64 data URL for storage
+      const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      
+      const success = await storage.updateProductImage(parseInt(id), base64Image);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const updatedProduct = await storage.getProduct(parseInt(id));
+      res.json({ success: true, product: updatedProduct });
+    } catch (error) {
+      console.error("Error uploading product image:", error);
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
   app.post("/api/admin/import-csv", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {

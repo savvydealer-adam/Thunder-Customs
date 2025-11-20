@@ -7,9 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
-import { ShoppingCart, ArrowLeft, AlertCircle, Package, Tag, Factory, Plus, Minus } from "lucide-react";
+import { ShoppingCart, ArrowLeft, AlertCircle, Package, Tag, Factory, Plus, Minus, Edit } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import type { Product } from "@shared/schema";
 
 export default function ProductDetail() {
@@ -18,6 +19,7 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   const { data: product, isLoading, error } = useQuery<Product>({
     queryKey: ['/api/products', productId],
@@ -50,12 +52,22 @@ export default function ProductDetail() {
     <div className="min-h-screen flex flex-col">
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
-          <Link href="/products">
-            <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Products
-            </Button>
-          </Link>
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/products">
+              <Button variant="ghost" className="gap-2" data-testid="button-back">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Products
+              </Button>
+            </Link>
+            {isAdmin && productId && (
+              <Link href={`/products/${productId}/edit`}>
+                <Button variant="outline" className="gap-2" data-testid="button-edit-product">
+                  <Edit className="h-4 w-4" />
+                  Edit Product
+                </Button>
+              </Link>
+            )}
+          </div>
 
           {error && (
             <Alert variant="destructive" className="mb-6">
@@ -124,10 +136,19 @@ export default function ProductDetail() {
                 </div>
 
                 {price !== null && (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-primary" data-testid="text-price">
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-1">MSRP</div>
+                    <div className="text-4xl font-bold text-primary" data-testid="text-price">
                       ${price.toFixed(2)}
-                    </span>
+                    </div>
+                  </div>
+                )}
+
+                {product.description && (
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <p className="text-sm leading-relaxed" data-testid="text-description">
+                      {product.description}
+                    </p>
                   </div>
                 )}
 
@@ -152,29 +173,8 @@ export default function ProductDetail() {
                         </div>
                       </div>
                     )}
-
-                    {product.stockQuantity !== null && product.stockQuantity !== undefined && (
-                      <div className="flex items-center gap-3">
-                        <Package className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <div className="text-sm font-medium">Stock</div>
-                          <div className="text-sm text-muted-foreground">
-                            {product.stockQuantity > 0 ? `${product.stockQuantity} available` : 'Out of stock'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
-
-                {product.description && (
-                  <div>
-                    <h2 className="text-xl font-semibold mb-3">Description</h2>
-                    <p className="text-muted-foreground leading-relaxed" data-testid="text-description">
-                      {product.description}
-                    </p>
-                  </div>
-                )}
 
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                   <div className="flex items-center gap-2">

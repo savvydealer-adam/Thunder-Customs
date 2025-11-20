@@ -8,8 +8,9 @@ export interface IStorage {
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(products: InsertProduct[]): Promise<Product[]>;
+  updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined>;
   getProductsWithoutImages(): Promise<Product[]>;
-  updateProductImage(id: number, imageUrl: string): Promise<void>;
+  updateProductImage(id: number, imageUrl: string): Promise<boolean>;
   getCategories(): Promise<Category[]>;
   getManufacturers(): Promise<Manufacturer[]>;
   getVehicleMakes(): Promise<VehicleMake[]>;
@@ -120,11 +121,22 @@ export class DatabaseStorage implements IStorage {
       .limit(100);
   }
 
-  async updateProductImage(id: number, imageUrl: string): Promise<void> {
-    await db
+  async updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined> {
+    const [product] = await db
+      .update(products)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    return product;
+  }
+
+  async updateProductImage(id: number, imageUrl: string): Promise<boolean> {
+    const [product] = await db
       .update(products)
       .set({ imageUrl, updatedAt: new Date() })
-      .where(eq(products.id, id));
+      .where(eq(products.id, id))
+      .returning();
+    return !!product;
   }
 
   // User operations for Replit Auth
@@ -134,18 +146,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
+    // First, check if a user with this email already exists
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, userData.email));
+
+    if (existingUser) {
+      // Update the existing user with new data (including potentially new ID from OIDC)
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          id: userData.id,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+        })
+        .where(eq(users.email, userData.email))
+        .returning();
+      return updatedUser;
+    } else {
+      // Insert new user
+      const [newUser] = await db
+        .insert(users)
+        .values(userData)
+        .returning();
+      return newUser;
+    }
   }
 
   async getAllUsers(): Promise<User[]> {

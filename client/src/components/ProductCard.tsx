@@ -73,8 +73,11 @@ export function ProductCard({ product }: ProductCardProps) {
 
       <CardFooter className="flex-none pt-0 flex items-center justify-between gap-3">
         {price !== null && (
-          <div className="font-bold text-lg text-primary" data-testid={`text-price-${product.id}`}>
-            ${price.toFixed(2)}
+          <div>
+            <div className="text-xs text-muted-foreground">MSRP</div>
+            <div className="font-bold text-lg text-primary" data-testid={`text-price-${product.id}`}>
+              ${price.toFixed(2)}
+            </div>
           </div>
         )}
         <Button size="sm" className="gap-2 ml-auto" data-testid={`button-add-to-cart-${product.id}`}>
