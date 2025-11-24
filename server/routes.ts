@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin } from "./replitAuth";
+import { parsePDFCatalog } from "./pdfParser";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -242,6 +243,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing batch:", error);
       res.status(500).json({ error: "Failed to import batch" });
+    }
+  });
+
+  // Import products from PDF catalog
+  app.post("/api/admin/import-pdf-catalog", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Validate it's a PDF file
+      if (req.file.mimetype !== 'application/pdf') {
+        return res.status(400).json({ error: "File must be a PDF" });
+      }
+
+      console.log(`📄 Parsing PDF catalog: ${req.file.originalname}`);
+      
+      // Parse PDF to extract product data
+      const parsedProducts = await parsePDFCatalog(req.file.buffer);
+      
+      if (parsedProducts.length === 0) {
+        return res.status(400).json({ error: "No products found in PDF catalog" });
+      }
+
+      console.log(`✅ Extracted ${parsedProducts.length} products from PDF`);
+
+      // Normalize and map to InsertProduct format
+      const productsToImport: InsertProduct[] = parsedProducts.map(p => {
+        // Normalize MSRP to canonical "XX.YY" format
+        let normalizedPrice: string | null = null;
+        if (p.price) {
+          const priceMatch = p.price.match(/^\d+(\.\d{1,2})?$/);
+          if (priceMatch) {
+            normalizedPrice = parseFloat(p.price).toFixed(2);
+          }
+        }
+
+        return {
+          partNumber: p.partNumber || `PDF-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          partName: p.name,
+          description: p.description || null,
+          manufacturer: p.manufacturer || 'Unknown',
+          category: p.category || 'Uncategorized',
+          vehicleMake: p.vehicleMake || null,
+          price: normalizedPrice,
+          cost: null, // PDF catalogs typically don't include dealer cost
+          stockQuantity: null,
+          imageUrl: null,
+          hidden: false,
+        };
+      });
+
+      // Import products (upsert based on part number)
+      const createdProducts = await storage.createProducts(productsToImport);
+      
+      console.log(`💾 Imported ${createdProducts.length} products to database`);
+
+      res.json({
+        success: true,
+        imported: createdProducts.length,
+        total: parsedProducts.length,
+        filename: req.file.originalname,
+      });
+    } catch (error) {
+      console.error("❌ Error importing PDF catalog:", error);
+      res.status(500).json({ 
+        error: "Failed to import PDF catalog",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

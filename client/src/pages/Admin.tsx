@@ -16,6 +16,7 @@ import { Redirect } from "wouter";
 export default function Admin() {
   const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -126,6 +127,54 @@ export default function Admin() {
 
   const handlePopulateImages = () => {
     imageSourceMutation.mutate();
+  };
+
+  const pdfUploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      return await apiRequest('POST', '/api/admin/import-pdf-catalog', formData) as {
+        success: boolean;
+        imported: number;
+        total: number;
+        filename: string;
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({
+        title: "PDF Import Successful",
+        description: `Imported ${data.imported} products from ${data.filename}.`,
+      });
+      setPdfFile(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "PDF Import Failed",
+        description: error.message || "Failed to import PDF catalog. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile && selectedFile.type === 'application/pdf') {
+      setPdfFile(selectedFile);
+    } else if (selectedFile) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please select a PDF file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePdfUpload = async () => {
+    if (!pdfFile) return;
+
+    const formData = new FormData();
+    formData.append('file', pdfFile);
+
+    pdfUploadMutation.mutate(formData);
   };
 
   if (isAuthLoading) {
@@ -253,6 +302,95 @@ export default function Admin() {
                   <p className="mt-4">
                     The import process will automatically parse product data including part names, 
                     manufacturers, categories, part numbers, and vehicle compatibility.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  PDF Catalog Import
+                </CardTitle>
+                <CardDescription>
+                  Upload PDF catalogs to automatically extract part names, descriptions, and MSRP pricing
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="pdf-file">Select PDF Catalog</Label>
+                  <Input
+                    id="pdf-file"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handlePdfFileChange}
+                    disabled={pdfUploadMutation.isPending}
+                    className="mt-2"
+                    data-testid="input-pdf-file"
+                  />
+                  {pdfFile && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between gap-2 text-sm bg-muted/50 rounded px-3 py-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 flex-shrink-0" />
+                          <span className="truncate">{pdfFile.name}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            ({(pdfFile.size / 1024).toFixed(2)} KB)
+                          </span>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setPdfFile(null)}
+                          disabled={pdfUploadMutation.isPending}
+                          className="h-6 w-6 flex-shrink-0"
+                          data-testid="button-remove-pdf"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {pdfUploadMutation.isSuccess && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      PDF catalog imported successfully! Products added to the catalog.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {pdfUploadMutation.isError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {pdfUploadMutation.error?.message || "Failed to import PDF catalog"}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  onClick={handlePdfUpload}
+                  disabled={!pdfFile || pdfUploadMutation.isPending}
+                  className="w-full"
+                  data-testid="button-upload-pdf"
+                >
+                  {pdfUploadMutation.isPending ? "Parsing PDF..." : "Import PDF Catalog"}
+                </Button>
+
+                <div className="text-sm text-muted-foreground space-y-2 pt-4 border-t">
+                  <p className="font-medium">What gets extracted:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Part numbers (e.g., "ABC-123")</li>
+                    <li>Product names and descriptions</li>
+                    <li>MSRP pricing (e.g., "$299.99")</li>
+                    <li>Manufacturer information</li>
+                  </ul>
+                  <p className="mt-4 text-xs">
+                    The parser uses smart pattern matching to identify product data from various PDF catalog formats.
                   </p>
                 </div>
               </CardContent>
