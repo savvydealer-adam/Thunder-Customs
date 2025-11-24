@@ -4,13 +4,25 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart } from "lucide-react";
 import { Link } from "wouter";
 import type { Product } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const price = product.price ? parseFloat(product.price) : null;
+  const { isAuthenticated } = useAuth();
+  
+  // Role-based pricing display
+  // Customers (not logged in): See Part Retail and Total Retail
+  // Logged-in users: See all pricing details
+  const partRetail = product.partRetail ? parseFloat(product.partRetail) : null;
+  const totalRetail = product.totalRetail ? parseFloat(product.totalRetail) : null;
+  const partMSRP = product.partMSRP ? parseFloat(product.partMSRP) : null;
+  
+  // Fallback to legacy price field if new fields aren't populated
+  const displayPrice = partRetail || (product.price ? parseFloat(product.price) : null);
+  const displayTotal = totalRetail;
 
   return (
     <Card className="hover-elevate active-elevate-2 overflow-hidden group h-full flex flex-col" data-testid={`card-product-${product.id}`}>
@@ -72,12 +84,19 @@ export function ProductCard({ product }: ProductCardProps) {
       </CardContent>
 
       <CardFooter className="flex-none pt-0 flex items-center justify-between gap-3">
-        {price !== null && (
+        {displayPrice !== null && (
           <div>
-            <div className="text-xs text-muted-foreground">MSRP</div>
-            <div className="font-bold text-lg text-primary" data-testid={`text-price-${product.id}`}>
-              ${price.toFixed(2)}
+            <div className="text-xs text-muted-foreground">
+              Part Retail
             </div>
+            <div className="font-bold text-lg text-primary" data-testid={`text-price-${product.id}`}>
+              ${displayPrice.toFixed(2)}
+            </div>
+            {displayTotal !== null && displayTotal !== displayPrice && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Total: <span className="font-semibold text-foreground" data-testid={`text-total-retail-${product.id}`}>${displayTotal.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         )}
         <Button size="sm" className="gap-2 ml-auto" data-testid={`button-add-to-cart-${product.id}`}>

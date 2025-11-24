@@ -26,7 +26,17 @@ export default function ProductDetail() {
     enabled: !!productId,
   });
 
-  const price = product?.price ? parseFloat(product.price) : null;
+  const { isAuthenticated } = useAuth();
+  
+  // Role-based pricing calculations
+  const partRetail = product?.partRetail ? parseFloat(product.partRetail) : null;
+  const totalRetail = product?.totalRetail ? parseFloat(product.totalRetail) : null;
+  const partCost = product?.partCost ? parseFloat(product.partCost) : null;
+  const laborHours = product?.laborHours ? parseFloat(product.laborHours) : null;
+  const retailInstallation = product?.retailInstallation ? parseFloat(product.retailInstallation) : null;
+  
+  // Fallback to legacy price field
+  const displayPrice = partRetail || (product?.price ? parseFloat(product.price) : null);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -135,13 +145,56 @@ export default function ProductDetail() {
                   </div>
                 </div>
 
-                {price !== null && (
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">MSRP</div>
-                    <div className="text-4xl font-bold text-primary" data-testid="text-price">
-                      ${price.toFixed(2)}
-                    </div>
-                  </div>
+                {displayPrice !== null && (
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-sm text-muted-foreground mb-1">
+                            Part Retail Price
+                          </div>
+                          <div className="text-4xl font-bold text-primary" data-testid="text-price">
+                            ${displayPrice.toFixed(2)}
+                          </div>
+                        </div>
+                        
+                        {/* Customer-facing pricing (shown to everyone) */}
+                        <div className="space-y-2 pt-4 border-t">
+                          {retailInstallation !== null && retailInstallation > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Installation Cost:</span>
+                              <span className="font-medium">${retailInstallation.toFixed(2)}</span>
+                            </div>
+                          )}
+                          {totalRetail !== null && totalRetail !== displayPrice && (
+                            <div className="flex justify-between text-base font-semibold pt-2 border-t">
+                              <span>Total Retail Price:</span>
+                              <span className="text-primary" data-testid="text-total-retail">${totalRetail.toFixed(2)}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Internal pricing metrics (shown to logged-in users only) */}
+                        {isAuthenticated && (
+                          <div className="space-y-2 pt-4 border-t">
+                            <p className="text-xs text-muted-foreground font-semibold">Internal Metrics</p>
+                            {laborHours !== null && laborHours > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Labor Hours:</span>
+                                <span className="font-medium" data-testid="text-labor-hours">{laborHours.toFixed(2)} hrs</span>
+                              </div>
+                            )}
+                            {partCost !== null && (
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Part Cost:</span>
+                                <span data-testid="text-part-cost">${partCost.toFixed(2)}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {product.description && (

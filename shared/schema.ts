@@ -13,8 +13,28 @@ export const products = pgTable("products", {
   supplier: varchar("supplier", { length: 255 }),
   creator: varchar("creator", { length: 255 }),
   description: text("description"),
-  price: decimal("price", { precision: 10, scale: 2 }),
-  cost: decimal("cost", { precision: 10, scale: 2 }),
+  
+  // Legacy pricing fields (kept for backward compatibility)
+  price: decimal("price", { precision: 10, scale: 2 }), // Part MSRP
+  cost: decimal("cost", { precision: 10, scale: 2 }), // Part Cost
+  
+  // New comprehensive pricing fields
+  laborHours: decimal("labor_hours", { precision: 10, scale: 2 }),
+  partCost: decimal("part_cost", { precision: 10, scale: 2 }), // Replaces 'cost'
+  salesMarkup: decimal("sales_markup", { precision: 10, scale: 2 }),
+  salesOperator: varchar("sales_operator", { length: 10 }), // "$" or "%"
+  salesType: varchar("sales_type", { length: 10 }), // "PC" (Part Cost) or "PM" (Part MSRP)
+  costToSales: decimal("cost_to_sales", { precision: 10, scale: 2 }),
+  salesInstallation: decimal("sales_installation", { precision: 10, scale: 2 }),
+  totalCostToSales: decimal("total_cost_to_sales", { precision: 10, scale: 2 }),
+  partMSRP: decimal("part_msrp", { precision: 10, scale: 2 }),
+  retailMarkup: decimal("retail_markup", { precision: 10, scale: 2 }),
+  retailOperator: varchar("retail_operator", { length: 10 }), // "$" or "%"
+  retailType: varchar("retail_type", { length: 10 }), // "PC" or "PM"
+  partRetail: decimal("part_retail", { precision: 10, scale: 2 }), // Customer-facing price
+  retailInstallation: decimal("retail_installation", { precision: 10, scale: 2 }),
+  totalRetail: decimal("total_retail", { precision: 10, scale: 2 }), // Customer-facing total
+  
   imageUrl: text("image_url"),
   dataSource: varchar("data_source", { length: 50 }).notNull().default('csv'),
   isHidden: boolean("is_hidden").notNull().default(false),

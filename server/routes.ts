@@ -89,33 +89,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
+      // Helper to validate and normalize decimal fields
+      const decimalField = z.union([z.string(), z.null()]).optional()
+        .refine((val) => val === null || !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
+          message: "Must be a valid decimal number (e.g., 99.99)",
+        })
+        .transform((val) => {
+          if (val === null) return null;
+          const trimmed = val?.trim();
+          return trimmed || undefined;
+        });
+      
+      // Helper to validate and normalize string fields
+      const stringField = z.union([z.string(), z.null()]).optional()
+        .transform((val) => {
+          if (val === null) return null;
+          const trimmed = val?.trim();
+          return trimmed || undefined;
+        });
+      
       // Validate input with Zod schema - enforce proper decimal format and trim values
       // Transform to distinguish between omitted (undefined) and cleared (empty string)
       const updateSchema = z.object({
-        price: z.union([z.string(), z.null()]).optional()
-          .refine((val) => val === null || !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
-            message: "Price must be a valid decimal number (e.g., 99.99)",
-          })
-          .transform((val) => {
-            if (val === null) return null;
-            const trimmed = val?.trim();
-            return trimmed || undefined;
-          }),
-        cost: z.union([z.string(), z.null()]).optional()
-          .refine((val) => val === null || !val || /^\d+(\.\d{1,2})?$/.test(val.trim()), {
-            message: "Cost must be a valid decimal number (e.g., 99.99)",
-          })
-          .transform((val) => {
-            if (val === null) return null;
-            const trimmed = val?.trim();
-            return trimmed || undefined;
-          }),
-        description: z.union([z.string(), z.null()]).optional()
-          .transform((val) => {
-            if (val === null) return null;
-            const trimmed = val?.trim();
-            return trimmed || undefined;
-          }),
+        // Legacy fields
+        price: decimalField,
+        cost: decimalField,
+        description: stringField,
+        
+        // New comprehensive pricing fields
+        laborHours: decimalField,
+        partCost: decimalField,
+        salesMarkup: decimalField,
+        salesOperator: stringField,
+        salesType: stringField,
+        costToSales: decimalField,
+        salesInstallation: decimalField,
+        totalCostToSales: decimalField,
+        partMSRP: decimalField,
+        retailMarkup: decimalField,
+        retailOperator: stringField,
+        retailType: stringField,
+        partRetail: decimalField,
+        retailInstallation: decimalField,
+        totalRetail: decimalField,
       });
       
       const validationResult = updateSchema.safeParse(req.body);
@@ -126,19 +142,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { price, cost, description } = validationResult.data;
+      const data = validationResult.data;
       
-      // Normalize monetary fields to canonical 2-decimal format, allow null for clears
+      // Helper to normalize decimal fields
+      const normalizeDecimal = (val: string | null | undefined) => {
+        return val ? Number(val).toFixed(2) : null;
+      };
+      
+      // Normalize all fields to canonical format, allow null for clears
       const updates: any = {};
-      if (price !== undefined) {
-        updates.price = price ? Number(price).toFixed(2) : null;
-      }
-      if (cost !== undefined) {
-        updates.cost = cost ? Number(cost).toFixed(2) : null;
-      }
-      if (description !== undefined) {
-        updates.description = description || null;
-      }
+      if (data.price !== undefined) updates.price = normalizeDecimal(data.price);
+      if (data.cost !== undefined) updates.cost = normalizeDecimal(data.cost);
+      if (data.description !== undefined) updates.description = data.description || null;
+      
+      // New comprehensive pricing fields
+      if (data.laborHours !== undefined) updates.laborHours = normalizeDecimal(data.laborHours);
+      if (data.partCost !== undefined) updates.partCost = normalizeDecimal(data.partCost);
+      if (data.salesMarkup !== undefined) updates.salesMarkup = normalizeDecimal(data.salesMarkup);
+      if (data.salesOperator !== undefined) updates.salesOperator = data.salesOperator || null;
+      if (data.salesType !== undefined) updates.salesType = data.salesType || null;
+      if (data.costToSales !== undefined) updates.costToSales = normalizeDecimal(data.costToSales);
+      if (data.salesInstallation !== undefined) updates.salesInstallation = normalizeDecimal(data.salesInstallation);
+      if (data.totalCostToSales !== undefined) updates.totalCostToSales = normalizeDecimal(data.totalCostToSales);
+      if (data.partMSRP !== undefined) updates.partMSRP = normalizeDecimal(data.partMSRP);
+      if (data.retailMarkup !== undefined) updates.retailMarkup = normalizeDecimal(data.retailMarkup);
+      if (data.retailOperator !== undefined) updates.retailOperator = data.retailOperator || null;
+      if (data.retailType !== undefined) updates.retailType = data.retailType || null;
+      if (data.partRetail !== undefined) updates.partRetail = normalizeDecimal(data.partRetail);
+      if (data.retailInstallation !== undefined) updates.retailInstallation = normalizeDecimal(data.retailInstallation);
+      if (data.totalRetail !== undefined) updates.totalRetail = normalizeDecimal(data.totalRetail);
       
       const updatedProduct = await storage.updateProduct(parseInt(id), updates);
       
@@ -476,6 +508,13 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
     return normalized === 'yes' || normalized === 'true' || normalized === '1' || normalized === 'x';
   };
 
+  const parseDecimal = (value: string): string | null => {
+    if (!value || value.trim() === '') return null;
+    const cleaned = value.replace(/[$,]/g, '').trim();
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? null : parsed.toFixed(2);
+  };
+
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i].match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
     if (!cells || cells.length < 6) continue;
@@ -487,11 +526,22 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
     const creator = extractText(cells[4]);
     const partNumber = extractText(cells[5]);
     
-    const hideValue = cells.length > 6 ? extractText(cells[6]) : '';
-    const popularValue = cells.length > 7 ? extractText(cells[7]) : '';
-    
-    const isHidden = hideValue.length > 0 && parseBoolean(hideValue);
-    const isPopular = popularValue.length > 0 && parseBoolean(popularValue);
+    // Extract new pricing fields (columns 7-22 in the new format)
+    const laborHours = cells.length > 6 ? parseDecimal(extractText(cells[6])) : null;
+    const partCost = cells.length > 7 ? parseDecimal(extractText(cells[7])) : null;
+    const salesMarkup = cells.length > 8 ? parseDecimal(extractText(cells[8])) : null;
+    const salesOperator = cells.length > 9 ? extractText(cells[9]) || null : null;
+    const salesType = cells.length > 10 ? extractText(cells[10]) || null : null;
+    const costToSales = cells.length > 11 ? parseDecimal(extractText(cells[11])) : null;
+    const salesInstallation = cells.length > 12 ? parseDecimal(extractText(cells[12])) : null;
+    const totalCostToSales = cells.length > 13 ? parseDecimal(extractText(cells[13])) : null;
+    const partMSRP = cells.length > 14 ? parseDecimal(extractText(cells[14])) : null;
+    const retailMarkup = cells.length > 15 ? parseDecimal(extractText(cells[15])) : null;
+    const retailOperator = cells.length > 16 ? extractText(cells[16]) || null : null;
+    const retailType = cells.length > 17 ? extractText(cells[17]) || null : null;
+    const partRetail = cells.length > 18 ? parseDecimal(extractText(cells[18])) : null;
+    const retailInstallation = cells.length > 19 ? parseDecimal(extractText(cells[19])) : null;
+    const totalRetail = cells.length > 20 ? parseDecimal(extractText(cells[20])) : null;
 
     if (!partName || !manufacturer || !category || !partNumber) {
       continue;
@@ -512,11 +562,31 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
       supplier: supplier || undefined,
       creator: creator || undefined,
       dataSource: 'csv',
-      isHidden,
-      isPopular,
+      isHidden: false,
+      isPopular: false,
       description: undefined,
-      price: undefined,
-      cost: undefined,
+      
+      // Legacy pricing fields (kept for backward compatibility)
+      price: partMSRP || undefined,
+      cost: partCost || undefined,
+      
+      // New comprehensive pricing fields
+      laborHours: laborHours || undefined,
+      partCost: partCost || undefined,
+      salesMarkup: salesMarkup || undefined,
+      salesOperator: salesOperator || undefined,
+      salesType: salesType || undefined,
+      costToSales: costToSales || undefined,
+      salesInstallation: salesInstallation || undefined,
+      totalCostToSales: totalCostToSales || undefined,
+      partMSRP: partMSRP || undefined,
+      retailMarkup: retailMarkup || undefined,
+      retailOperator: retailOperator || undefined,
+      retailType: retailType || undefined,
+      partRetail: partRetail || undefined,
+      retailInstallation: retailInstallation || undefined,
+      totalRetail: totalRetail || undefined,
+      
       imageUrl: placeholderImageUrl,
       stockQuantity: 0,
     });

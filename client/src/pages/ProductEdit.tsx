@@ -19,14 +19,32 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Product } from "@shared/schema";
 
 // Form schema for product updates
+const decimalField = z.string().refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val), {
+  message: "Must be a valid decimal number (e.g., 99.99)",
+}).transform((val) => val === "" ? undefined : val).optional();
+
 const productUpdateSchema = z.object({
-  price: z.string().refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val), {
-    message: "Price must be a valid decimal number (e.g., 99.99)",
-  }).transform((val) => val === "" ? undefined : val).optional(),
-  cost: z.string().refine((val) => !val || /^\d+(\.\d{1,2})?$/.test(val), {
-    message: "Cost must be a valid decimal number (e.g., 99.99)",
-  }).transform((val) => val === "" ? undefined : val).optional(),
+  // Legacy fields
+  price: decimalField,
+  cost: decimalField,
   description: z.string().transform((val) => val === "" ? undefined : val).optional(),
+  
+  // New comprehensive pricing fields
+  laborHours: decimalField,
+  partCost: decimalField,
+  salesMarkup: decimalField,
+  salesOperator: z.string().optional(),
+  salesType: z.string().optional(),
+  costToSales: decimalField,
+  salesInstallation: decimalField,
+  totalCostToSales: decimalField,
+  partMSRP: decimalField,
+  retailMarkup: decimalField,
+  retailOperator: z.string().optional(),
+  retailType: z.string().optional(),
+  partRetail: decimalField,
+  retailInstallation: decimalField,
+  totalRetail: decimalField,
 });
 
 type ProductUpdateForm = z.infer<typeof productUpdateSchema>;
@@ -51,6 +69,21 @@ export default function ProductEdit() {
       price: "",
       cost: "",
       description: "",
+      laborHours: "",
+      partCost: "",
+      salesMarkup: "",
+      salesOperator: "",
+      salesType: "",
+      costToSales: "",
+      salesInstallation: "",
+      totalCostToSales: "",
+      partMSRP: "",
+      retailMarkup: "",
+      retailOperator: "",
+      retailType: "",
+      partRetail: "",
+      retailInstallation: "",
+      totalRetail: "",
     },
   });
 
@@ -61,6 +94,21 @@ export default function ProductEdit() {
         price: product.price || "",
         cost: product.cost || "",
         description: product.description || "",
+        laborHours: product.laborHours || "",
+        partCost: product.partCost || "",
+        salesMarkup: product.salesMarkup || "",
+        salesOperator: product.salesOperator || "",
+        salesType: product.salesType || "",
+        costToSales: product.costToSales || "",
+        salesInstallation: product.salesInstallation || "",
+        totalCostToSales: product.totalCostToSales || "",
+        partMSRP: product.partMSRP || "",
+        retailMarkup: product.retailMarkup || "",
+        retailOperator: product.retailOperator || "",
+        retailType: product.retailType || "",
+        partRetail: product.partRetail || "",
+        retailInstallation: product.retailInstallation || "",
+        totalRetail: product.totalRetail || "",
       });
       setImagePreview(product.imageUrl || "");
     }
@@ -134,23 +182,41 @@ export default function ProductEdit() {
     // Normalize monetary fields to 2 decimal places, use null for intentional clears
     const normalizedData: any = {};
     
-    // Handle price: normalize to 2 decimals or send null if cleared
-    if (data.price !== undefined) {
-      const trimmedPrice = data.price?.trim();
-      normalizedData.price = trimmedPrice && trimmedPrice !== "" ? parseFloat(trimmedPrice).toFixed(2) : null;
-    }
+    // Helper function to normalize decimal fields
+    const normalizeDecimal = (value: string | undefined) => {
+      if (value === undefined) return undefined;
+      const trimmed = value?.trim();
+      return trimmed && trimmed !== "" ? parseFloat(trimmed).toFixed(2) : null;
+    };
     
-    // Handle cost: normalize to 2 decimals or send null if cleared
-    if (data.cost !== undefined) {
-      const trimmedCost = data.cost?.trim();
-      normalizedData.cost = trimmedCost && trimmedCost !== "" ? parseFloat(trimmedCost).toFixed(2) : null;
-    }
+    // Helper function to normalize string fields
+    const normalizeString = (value: string | undefined) => {
+      if (value === undefined) return undefined;
+      const trimmed = value?.trim();
+      return trimmed && trimmed !== "" ? trimmed : null;
+    };
     
-    // Handle description: send as-is or null if cleared
-    if (data.description !== undefined) {
-      const trimmedDesc = data.description?.trim();
-      normalizedData.description = trimmedDesc && trimmedDesc !== "" ? trimmedDesc : null;
-    }
+    // Legacy fields
+    normalizedData.price = normalizeDecimal(data.price);
+    normalizedData.cost = normalizeDecimal(data.cost);
+    normalizedData.description = normalizeString(data.description);
+    
+    // New comprehensive pricing fields
+    normalizedData.laborHours = normalizeDecimal(data.laborHours);
+    normalizedData.partCost = normalizeDecimal(data.partCost);
+    normalizedData.salesMarkup = normalizeDecimal(data.salesMarkup);
+    normalizedData.salesOperator = normalizeString(data.salesOperator);
+    normalizedData.salesType = normalizeString(data.salesType);
+    normalizedData.costToSales = normalizeDecimal(data.costToSales);
+    normalizedData.salesInstallation = normalizeDecimal(data.salesInstallation);
+    normalizedData.totalCostToSales = normalizeDecimal(data.totalCostToSales);
+    normalizedData.partMSRP = normalizeDecimal(data.partMSRP);
+    normalizedData.retailMarkup = normalizeDecimal(data.retailMarkup);
+    normalizedData.retailOperator = normalizeString(data.retailOperator);
+    normalizedData.retailType = normalizeString(data.retailType);
+    normalizedData.partRetail = normalizeDecimal(data.partRetail);
+    normalizedData.retailInstallation = normalizeDecimal(data.retailInstallation);
+    normalizedData.totalRetail = normalizeDecimal(data.totalRetail);
     
     updateProductMutation.mutate(normalizedData);
   };
@@ -243,43 +309,27 @@ export default function ProductEdit() {
             <Card>
               <CardHeader>
                 <CardTitle>Product Details</CardTitle>
-                <CardDescription>Update pricing and description</CardDescription>
+                <CardDescription>Update comprehensive pricing and description</CardDescription>
               </CardHeader>
               <CardContent>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    
+                    {/* Labor Section */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm">Labor</h3>
                       <FormField
                         control={form.control}
-                        name="price"
+                        name="laborHours"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>MSRP (Retail Price)</FormLabel>
+                            <FormLabel>Labor Hours</FormLabel>
                             <FormControl>
                               <Input
                                 type="number"
                                 step="0.01"
                                 placeholder="0.00"
-                                data-testid="input-price"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="cost"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cost (Your Cost)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                                data-testid="input-cost"
+                                data-testid="input-labor-hours"
                                 {...field}
                               />
                             </FormControl>
@@ -289,24 +339,300 @@ export default function ProductEdit() {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Enter a brief product description..."
-                              rows={4}
-                              data-testid="input-description"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* Cost & Sales Pricing Section */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <h3 className="font-semibold text-sm">Cost & Sales Pricing</h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="partCost"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Part Cost</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-part-cost"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="salesMarkup"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sales Markup</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-sales-markup"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="salesOperator"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sales Operator</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="$ or %"
+                                  data-testid="input-sales-operator"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="salesType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sales Type</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="PC or PM"
+                                  data-testid="input-sales-type"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="costToSales"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cost to Sales</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-cost-to-sales"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="salesInstallation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sales Installation</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-sales-installation"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="totalCostToSales"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Total Cost to Sales</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-total-cost-to-sales"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Retail Pricing Section (Customer-Facing) */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <h3 className="font-semibold text-sm">Retail Pricing (Customer-Facing)</h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="partMSRP"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Part MSRP</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-part-msrp"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="retailMarkup"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Retail Markup</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-retail-markup"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="retailOperator"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Retail Operator</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="$ or %"
+                                  data-testid="input-retail-operator"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="retailType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Retail Type</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="PC or PM"
+                                  data-testid="input-retail-type"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="partRetail"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Part Retail ⭐</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-part-retail"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="retailInstallation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Retail Installation</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-retail-installation"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="totalRetail"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Total Retail ⭐</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  data-testid="input-total-retail"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">⭐ These fields are displayed to customers</p>
+                    </div>
+
+                    {/* Description */}
+                    <div className="pt-4 border-t">
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Enter a brief product description..."
+                                rows={4}
+                                data-testid="input-description"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     {updateProductMutation.isSuccess && (
                       <Alert>
@@ -329,7 +655,7 @@ export default function ProductEdit() {
                       disabled={updateProductMutation.isPending}
                       data-testid="button-save-details"
                     >
-                      {updateProductMutation.isPending ? "Saving..." : "Save Details"}
+                      {updateProductMutation.isPending ? "Saving..." : "Save All Details"}
                     </Button>
                   </form>
                 </Form>
