@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const IMAGES_DIR = 'attached_assets/product_images';
-const DELAY_MS = 500;
+const DELAY_MS = 100;
 
 async function downloadImage(url: string, filepath: string): Promise<boolean> {
   try {
@@ -75,17 +75,27 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
   
   console.log('Fetching products from database...');
   
+  const conditions = [];
+  
+  if (manufacturer) {
+    conditions.push(ilike(products.manufacturer, `%${manufacturer}%`));
+  }
+  
+  conditions.push(
+    or(
+      isNull(products.imageUrl),
+      sql`${products.imageUrl} = ''`,
+      sql`${products.imageUrl} LIKE '%placehold%'`
+    )
+  );
+  
   let query = db.select({
     id: products.id,
     partNumber: products.partNumber,
     partName: products.partName,
     manufacturer: products.manufacturer,
     imageUrl: products.imageUrl
-  }).from(products);
-  
-  if (manufacturer) {
-    query = query.where(ilike(products.manufacturer, `%${manufacturer}%`)) as typeof query;
-  }
+  }).from(products).where(sql`${sql.join(conditions, sql` AND `)}`);
   
   if (limit) {
     query = query.limit(limit) as typeof query;
