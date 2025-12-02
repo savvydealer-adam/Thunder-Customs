@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilters } from "@/components/ProductFilters";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -132,8 +131,6 @@ export default function Products() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-muted/10 to-background">
-      <Header />
-      
       <main className="flex-1">
         <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b">
           <div className="container mx-auto px-4 py-12">
