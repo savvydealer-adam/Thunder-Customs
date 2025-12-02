@@ -10,6 +10,7 @@ export const products = pgTable("products", {
   manufacturer: varchar("manufacturer", { length: 255 }).notNull(),
   category: varchar("category", { length: 255 }).notNull(),
   vehicleMake: varchar("vehicle_make", { length: 100 }),
+  vehicleModel: varchar("vehicle_model", { length: 100 }),
   supplier: varchar("supplier", { length: 255 }),
   creator: varchar("creator", { length: 255 }),
   description: text("description"),
