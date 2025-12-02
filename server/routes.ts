@@ -469,11 +469,13 @@ function parseProductsFromHTML(content: string, filename?: string): InsertProduc
   
   let vehicleMake: string | undefined;
   
-  const titleMatch = content.match(/Parts Catalog for (.+?)(?:\s+All)?$/im);
+  // Match both "Parts Catalog for XXX" and "Pricing Report for XXX"
+  const titleMatch = content.match(/(?:Parts Catalog|Pricing Report) for (.+?)(?:\s+All)?$/im);
   if (titleMatch) {
     vehicleMake = titleMatch[1].trim();
   } else if (filename) {
-    const filenameMatch = filename.match(/^([A-Za-z\s-]+)(?:\sR&R|\s)/i);
+    // Try to extract make from filename (e.g., "Ford.xls", "Ram R&R.xls")
+    const filenameMatch = filename.match(/^([A-Za-z\s-]+?)(?:\.xls|\.xlsx|\sR&R|\s)/i);
     if (filenameMatch) {
       vehicleMake = filenameMatch[1].trim();
     }
