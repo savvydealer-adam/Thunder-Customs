@@ -16,12 +16,15 @@ interface ProductFiltersProps {
   categories: FilterOption[];
   manufacturers: FilterOption[];
   vehicleMakes: FilterOption[];
+  vehicleModels: FilterOption[];
   selectedCategories: string[];
   selectedManufacturers: string[];
   selectedVehicleMakes: string[];
+  selectedVehicleModels: string[];
   onCategoryChange: (category: string, checked: boolean) => void;
   onManufacturerChange: (manufacturer: string, checked: boolean) => void;
   onVehicleMakeChange: (make: string, checked: boolean) => void;
+  onVehicleModelChange: (model: string, checked: boolean) => void;
   onClearAll: () => void;
 }
 
@@ -29,18 +32,22 @@ export function ProductFilters({
   categories,
   manufacturers,
   vehicleMakes,
+  vehicleModels,
   selectedCategories,
   selectedManufacturers,
   selectedVehicleMakes,
+  selectedVehicleModels,
   onCategoryChange,
   onManufacturerChange,
   onVehicleMakeChange,
+  onVehicleModelChange,
   onClearAll,
 }: ProductFiltersProps) {
   const hasActiveFilters = 
     selectedCategories.length > 0 || 
     selectedManufacturers.length > 0 || 
-    selectedVehicleMakes.length > 0;
+    selectedVehicleMakes.length > 0 ||
+    selectedVehicleModels.length > 0;
 
   return (
     <div className="space-y-4">
@@ -88,6 +95,41 @@ export function ProductFilters({
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {vehicleModels.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Vehicle Model</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-48">
+              <div className="space-y-3">
+                {vehicleModels.map((model) => (
+                  <div key={model.value} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`model-${model.value}`}
+                      checked={selectedVehicleModels.includes(model.value)}
+                      onCheckedChange={(checked) => 
+                        onVehicleModelChange(model.value, checked as boolean)
+                      }
+                      data-testid={`checkbox-model-${model.value}`}
+                    />
+                    <Label 
+                      htmlFor={`model-${model.value}`}
+                      className="text-sm cursor-pointer flex-1"
+                    >
+                      {model.label}
+                      {model.count !== undefined && (
+                        <span className="text-muted-foreground ml-1">({model.count})</span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

@@ -4,7 +4,7 @@ import { db } from "./db";
 import { eq, ilike, and, or, inArray, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
-  getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; search?: string }): Promise<Product[]>;
+  getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; vehicleModel?: string; search?: string }): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(products: InsertProduct[]): Promise<Product[]>;
@@ -23,7 +23,7 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; search?: string }): Promise<Product[]> {
+  async getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; vehicleModel?: string; search?: string }): Promise<Product[]> {
     const conditions = [];
     
     if (filters?.category) {
@@ -34,6 +34,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.vehicleMake) {
       conditions.push(eq(products.vehicleMake, filters.vehicleMake));
+    }
+    if (filters?.vehicleModel) {
+      conditions.push(eq(products.vehicleModel, filters.vehicleModel));
     }
     if (filters?.search) {
       conditions.push(

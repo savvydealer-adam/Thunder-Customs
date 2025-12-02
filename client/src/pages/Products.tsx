@@ -12,20 +12,23 @@ export default function Products() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedManufacturers, setSelectedManufacturers] = useState<string[]>([]);
   const [selectedVehicleMakes, setSelectedVehicleMakes] = useState<string[]>([]);
+  const [selectedVehicleModels, setSelectedVehicleModels] = useState<string[]>([]);
 
   const buildFilteredUrl = () => {
     const params = new URLSearchParams();
     if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
     if (selectedManufacturers.length === 1) params.set('manufacturer', selectedManufacturers[0]);
     if (selectedVehicleMakes.length === 1) params.set('vehicleMake', selectedVehicleMakes[0]);
+    if (selectedVehicleModels.length === 1) params.set('vehicleModel', selectedVehicleModels[0]);
     const query = params.toString();
     return query ? `/api/products?${query}` : '/api/products';
   };
 
   const hasSingleFilter = 
-    (selectedCategories.length === 1 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0) ||
-    (selectedCategories.length === 0 && selectedManufacturers.length === 1 && selectedVehicleMakes.length === 0) ||
-    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 1);
+    (selectedCategories.length === 1 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 0) ||
+    (selectedCategories.length === 0 && selectedManufacturers.length === 1 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 0) ||
+    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 1 && selectedVehicleModels.length === 0) ||
+    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 1);
 
   const { data: products, isLoading, error } = useQuery<Product[]>({
     queryKey: [buildFilteredUrl()],
@@ -47,12 +50,21 @@ export default function Products() {
     setSelectedVehicleMakes(prev =>
       checked ? [...prev, make] : prev.filter(m => m !== make)
     );
+    // Clear model selection when make changes
+    setSelectedVehicleModels([]);
+  };
+
+  const handleVehicleModelChange = (model: string, checked: boolean) => {
+    setSelectedVehicleModels(prev =>
+      checked ? [...prev, model] : prev.filter(m => m !== model)
+    );
   };
 
   const handleClearAll = () => {
     setSelectedCategories([]);
     setSelectedManufacturers([]);
     setSelectedVehicleMakes([]);
+    setSelectedVehicleModels([]);
   };
 
   const filteredProducts = products?.filter(product => {
@@ -64,6 +76,9 @@ export default function Products() {
         return false;
       }
       if (selectedVehicleMakes.length > 0 && product.vehicleMake && !selectedVehicleMakes.includes(product.vehicleMake)) {
+        return false;
+      }
+      if (selectedVehicleModels.length > 0 && (!product.vehicleModel || !selectedVehicleModels.includes(product.vehicleModel))) {
         return false;
       }
     }
@@ -99,6 +114,22 @@ export default function Products() {
       count: products?.filter(p => p.vehicleMake === make && !p.isHidden).length || 0,
     }));
 
+  // Get models for the selected make(s)
+  const vehicleModels = selectedVehicleMakes.length === 1
+    ? Array.from(new Set(
+        products
+          ?.filter(p => p.vehicleMake === selectedVehicleMakes[0] && p.vehicleModel)
+          .map(p => p.vehicleModel!)
+          .filter(Boolean) || []
+      ))
+        .sort()
+        .map(model => ({
+          value: model,
+          label: model,
+          count: products?.filter(p => p.vehicleModel === model && !p.isHidden).length || 0,
+        }))
+    : [];
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-muted/10 to-background">
       <Header />
@@ -122,12 +153,15 @@ export default function Products() {
                   categories={categories}
                   manufacturers={manufacturers}
                   vehicleMakes={vehicleMakes}
+                  vehicleModels={vehicleModels}
                   selectedCategories={selectedCategories}
                   selectedManufacturers={selectedManufacturers}
                   selectedVehicleMakes={selectedVehicleMakes}
+                  selectedVehicleModels={selectedVehicleModels}
                   onCategoryChange={handleCategoryChange}
                   onManufacturerChange={handleManufacturerChange}
                   onVehicleMakeChange={handleVehicleMakeChange}
+                  onVehicleModelChange={handleVehicleModelChange}
                   onClearAll={handleClearAll}
                 />
               </div>

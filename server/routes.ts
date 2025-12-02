@@ -42,11 +42,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public product routes
   app.get("/api/products", async (req, res) => {
     try {
-      const { category, manufacturer, vehicleMake, search } = req.query;
+      const { category, manufacturer, vehicleMake, vehicleModel, search } = req.query;
       const products = await storage.getProducts({
         category: category as string | undefined,
         manufacturer: manufacturer as string | undefined,
         vehicleMake: vehicleMake as string | undefined,
+        vehicleModel: vehicleModel as string | undefined,
         search: search as string | undefined,
       });
       res.json(products);
