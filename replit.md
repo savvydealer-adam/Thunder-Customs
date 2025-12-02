@@ -18,7 +18,7 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ Robust HTML-wrapped XLS parser with vehicle make extraction **and comprehensive pricing field extraction**
 - ✅ Database upsert logic updates all mutable fields for data freshness
 - ✅ **ALL 35 vehicle make files imported** - Complete catalog ready!
-- ✅ **Professional branded placeholder images** for all 8,326 products (Thunder Customs blue with manufacturer/part info)
+- ✅ **Automated product image sourcing** - 851 product-specific images from Summit Racing, 7,038 category-based stock images (100% coverage)
 - ✅ **Employee authentication system** with Replit Auth integration
 - ✅ **Role-based access control** (admin, manager, staff roles)
 - ✅ **Protected admin routes** for product management and employee management
@@ -29,15 +29,22 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ **Role-based pricing display** - Customers see Part Retail + Total Retail; logged-in users see all internal metrics (labor, cost, markups)
 - ✅ **Stock quantity hidden** - Stock info not displayed to customers on product detail pages
 
+**Product Image System:**
+- **851 Summit Racing images**: Downloaded locally from `https://static.summitracing.com/` based on part numbers
+- **7,038 Category-based stock images**: Assigned from stock photo library matching product categories
+- **Image Scripts:**
+  - `scripts/download-product-images.ts`: Downloads images from Summit Racing with intelligent fallback for product variants (SK, IM suffixes)
+  - `scripts/assign-category-images.ts`: Assigns category-appropriate stock images to products without downloaded images
+- **To refresh images for new products**: Run `npx tsx scripts/download-product-images.ts --manufacturer=Weathertech --limit=500` followed by `npx tsx scripts/assign-category-images.ts`
+
 **Imported Product Catalog:**
-- **22 Vehicle Makes** with **7,196 Total Products**
+- **22 Vehicle Makes** with **7,889 Total Products**
 - Top brands: Toyota (1,059), Ford (706), GMC (644), Nissan (534), KIA (502), Honda (486), Jeep (467)
 - All makes: Acura, Buick, Cadillac, Chevrolet, Chrysler, Dodge, Ford, GMC, Honda, Infiniti, Jeep, KIA, Lexus, Lincoln, Mazda, Mitsubishi, Nissan, Ram, Subaru, Toyota, Volkswagen, Volvo
 
 **Next Steps:**
 1. Add pricing data to products using the admin product edit feature (`/products/:id/edit`)
-2. Replace branded placeholders with real product images from supplier feeds or upload custom images
-3. MOPAR API integration when credentials become available
+2. MOPAR API integration when credentials become available
 
 **Quick Start:**
 - Visit `/admin` to batch import XLS files
