@@ -37,6 +37,8 @@ export const products = pgTable("products", {
   totalRetail: decimal("total_retail", { precision: 10, scale: 2 }), // Customer-facing total
   
   imageUrl: text("image_url"),
+  imageSource: varchar("image_source", { length: 100 }), // e.g., "summit_racing", "carid", "manual"
+  imageAttemptedAt: timestamp("image_attempted_at"), // Track when download was last attempted
   dataSource: varchar("data_source", { length: 50 }).notNull().default('csv'),
   isHidden: boolean("is_hidden").notNull().default(false),
   isPopular: boolean("is_popular").notNull().default(false),

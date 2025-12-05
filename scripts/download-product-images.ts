@@ -1,6 +1,6 @@
 import { db } from '../server/db';
 import { products } from '../shared/schema';
-import { eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { eq, ilike, isNull, and, SQL } from 'drizzle-orm';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -40,21 +40,42 @@ async function downloadImage(url: string, filepath: string): Promise<boolean> {
   }
 }
 
-function buildSummitRacingUrls(partNumber: string): string[] {
+function buildImageUrls(partNumber: string, manufacturer: string): string[] {
   const urls: string[] = [];
   
-  // Clean part number - remove spaces, special chars
+  // Clean part number variations
   const normalizedPart = partNumber.toLowerCase().replace(/[\s-]+/g, '');
   const originalPart = partNumber.toLowerCase().replace(/\s+/g, '');
+  const upperPart = partNumber.toUpperCase().replace(/\s+/g, '');
   
-  // Primary Summit Racing format with MNA prefix
+  // Summit Racing CDN (works well for WeatherTech, N-Fab, K&N)
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${originalPart}_xl.jpg`);
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${normalizedPart}_xl.jpg`);
-  
-  // Try without MNA prefix
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/${originalPart}_xl.jpg`);
   
-  // Try with different suffix variations
+  // N-Fab specific patterns
+  if (manufacturer.toLowerCase().includes('n-fab') || manufacturer.toLowerCase().includes('nfab')) {
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/nfb-${originalPart}_xl.jpg`);
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/nfa-${originalPart}_xl.jpg`);
+  }
+  
+  // K&N specific patterns
+  if (manufacturer.toLowerCase().includes('k&n') || manufacturer.toLowerCase().includes('kn')) {
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/knn-${originalPart}_xl.jpg`);
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/k&n-${originalPart}_xl.jpg`);
+  }
+  
+  // CARiD CDN patterns (works for many aftermarket parts)
+  urls.push(`https://ic.carid.com/products/${upperPart}_1.jpg`);
+  urls.push(`https://ic.carid.com/products/${upperPart}.jpg`);
+  
+  // AutoAnything CDN
+  urls.push(`https://images.autoanything.com/hi-res/products/${upperPart}.jpg`);
+  
+  // RealTruck CDN (for truck accessories)
+  urls.push(`https://cdn.realtruck.com/prod-images/${upperPart}.jpg`);
+  
+  // Try with different suffix variations for WeatherTech
   const basePartWithoutSuffix = originalPart
     .replace(/sk$/i, '')
     .replace(/im$/i, '')
@@ -84,7 +105,7 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function downloadProductImages(manufacturer?: string, limit?: number, dryRun: boolean = false) {
+async function downloadProductImages(manufacturer?: string, limit?: number, dryRun: boolean = false, retryAttempted: boolean = false) {
   if (!fs.existsSync(IMAGES_DIR)) {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
   }
@@ -93,15 +114,18 @@ async function downloadProductImages(manufacturer?: string, limit?: number, dryR
   console.log(`Manufacturer filter: ${manufacturer || 'ALL'}`);
   console.log(`Limit: ${limit || 'NONE'}`);
   console.log(`Dry run: ${dryRun}`);
+  console.log(`Retry failed: ${retryAttempted}`);
   
-  const conditions = [];
+  // Only get products without images AND not previously attempted (unless --retry flag)
+  const conditions: SQL[] = [isNull(products.imageUrl)];
+  
+  if (!retryAttempted) {
+    conditions.push(isNull(products.imageAttemptedAt));
+  }
   
   if (manufacturer) {
     conditions.push(ilike(products.manufacturer, `%${manufacturer}%`));
   }
-  
-  // Only get products without images
-  conditions.push(isNull(products.imageUrl));
   
   let query = db.select({
     id: products.id,
@@ -109,7 +133,7 @@ async function downloadProductImages(manufacturer?: string, limit?: number, dryR
     partName: products.partName,
     manufacturer: products.manufacturer,
     imageUrl: products.imageUrl
-  }).from(products).where(sql`${sql.join(conditions, sql` AND `)}`);
+  }).from(products).where(and(...conditions));
   
   if (limit) {
     query = query.limit(limit) as typeof query;
@@ -147,16 +171,24 @@ async function downloadProductImages(manufacturer?: string, limit?: number, dryR
       continue;
     }
     
-    const urls = buildSummitRacingUrls(product.partNumber);
+    const urls = buildImageUrls(product.partNumber, product.manufacturer || '');
     
     if ((i + 1) % 50 === 0 || i === 0) {
       console.log(`[${i + 1}/${productList.length}] Processing: ${product.partNumber}`);
     }
     
     let success = false;
+    let imageSource = '';
     for (const url of urls) {
       success = await downloadImage(url, filepath);
       if (success) {
+        // Determine source from URL
+        if (url.includes('summitracing')) imageSource = 'summit_racing';
+        else if (url.includes('carid')) imageSource = 'carid';
+        else if (url.includes('autoanything')) imageSource = 'autoanything';
+        else if (url.includes('realtruck')) imageSource = 'realtruck';
+        else imageSource = 'other';
+        
         console.log(`  ✓ Downloaded: ${product.partNumber}`);
         break;
       }
@@ -167,10 +199,22 @@ async function downloadProductImages(manufacturer?: string, limit?: number, dryR
       
       const imageUrl = `/${IMAGES_DIR}/${filename}`;
       await db.update(products)
-        .set({ imageUrl, updatedAt: new Date() })
+        .set({ 
+          imageUrl, 
+          imageSource,
+          imageAttemptedAt: new Date(),
+          updatedAt: new Date() 
+        })
         .where(eq(products.id, product.id));
     } else {
       failed++;
+      // Mark as attempted even if failed
+      await db.update(products)
+        .set({ 
+          imageAttemptedAt: new Date(),
+          updatedAt: new Date() 
+        })
+        .where(eq(products.id, product.id));
     }
     
     await sleep(DELAY_MS);
@@ -193,8 +237,9 @@ const args = process.argv.slice(2);
 const manufacturer = args.find(a => a.startsWith('--manufacturer='))?.split('=')[1];
 const limit = args.find(a => a.startsWith('--limit='))?.split('=')[1];
 const dryRun = args.includes('--dry-run');
+const retryFailed = args.includes('--retry');
 
-downloadProductImages(manufacturer, limit ? parseInt(limit) : undefined, dryRun)
+downloadProductImages(manufacturer, limit ? parseInt(limit) : undefined, dryRun, retryFailed)
   .then(() => {
     console.log('\nDone!');
     process.exit(0);
