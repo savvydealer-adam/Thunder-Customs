@@ -29,13 +29,22 @@ The Thunder Customs e-commerce platform is fully functional with complete produc
 - ✅ **Role-based pricing display** - Customers see Part Retail + Total Retail; logged-in users see all internal metrics (labor, cost, markups)
 - ✅ **Stock quantity hidden** - Stock info not displayed to customers on product detail pages
 
-**Product Image System:**
-- **851 Summit Racing images**: Downloaded locally from `https://static.summitracing.com/` based on part numbers
-- **7,038 Category-based stock images**: Assigned from stock photo library matching product categories
+**Product Image System (Updated December 2025):**
+- **3,261 real product images** downloaded from manufacturer sources (Summit Racing CDN, CARiD, AutoAnything, RealTruck)
+- **tc- naming convention**: All images use Thunder Customs prefix (e.g., `tc-456401.jpg`)
+- **Image tracking**: `imageSource` field tracks where each image came from; `imageAttemptedAt` prevents re-trying failed downloads
+- **Placeholder system**: Products without images show "Image Coming Soon" placeholder instead of incorrect stock photos
 - **Image Scripts:**
-  - `scripts/download-product-images.ts`: Downloads images from Summit Racing with intelligent fallback for product variants (SK, IM suffixes)
-  - `scripts/assign-category-images.ts`: Assigns category-appropriate stock images to products without downloaded images
-- **To refresh images for new products**: Run `npx tsx scripts/download-product-images.ts --manufacturer=Weathertech --limit=500` followed by `npx tsx scripts/assign-category-images.ts`
+  - `scripts/download-product-images.ts`: Downloads images from multiple CDN sources with manufacturer-specific URL patterns
+  - Flags: `--manufacturer=X`, `--limit=N`, `--dry-run`, `--retry` (retry previously failed products)
+- **Current Coverage by Manufacturer:**
+  - WeatherTech: 1,591 images
+  - Universal: 732 images  
+  - Affiliated Accessories: 453 images
+  - N-Fab: 371 images (100% coverage)
+  - Dealership Packages: 58 images
+- **OEM Products (Jeep, RAM, Dodge, Mopar, Chrysler)**: ~2,000 products awaiting MOPAR API credentials for image sourcing
+- **To download more images**: Run `npx tsx scripts/download-product-images.ts --manufacturer=Weathertech --limit=50` in batches of 50 to avoid timeouts
 
 **Imported Product Catalog:**
 - **22 Vehicle Makes** with **7,889 Total Products**
