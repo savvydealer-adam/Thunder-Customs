@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const IMAGES_DIR = 'attached_assets/product_images';
-const DELAY_MS = 100;
+const DELAY_MS = 150;
 
 async function downloadImage(url: string, filepath: string): Promise<boolean> {
   try {
@@ -27,6 +27,12 @@ async function downloadImage(url: string, filepath: string): Promise<boolean> {
     }
     
     const buffer = await response.arrayBuffer();
+    
+    // Verify it's a real image (not a placeholder)
+    if (buffer.byteLength < 5000) {
+      return false; // Too small, likely a placeholder
+    }
+    
     fs.writeFileSync(filepath, Buffer.from(buffer));
     return true;
   } catch (error) {
@@ -36,23 +42,33 @@ async function downloadImage(url: string, filepath: string): Promise<boolean> {
 
 function buildSummitRacingUrls(partNumber: string): string[] {
   const urls: string[] = [];
-  const normalizedPart = partNumber.toLowerCase().replace(/\s+/g, '');
   
+  // Clean part number - remove spaces, special chars
+  const normalizedPart = partNumber.toLowerCase().replace(/[\s-]+/g, '');
+  const originalPart = partNumber.toLowerCase().replace(/\s+/g, '');
+  
+  // Primary Summit Racing format with MNA prefix
+  urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${originalPart}_xl.jpg`);
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${normalizedPart}_xl.jpg`);
   
-  const basePartWithoutSuffix = normalizedPart
+  // Try without MNA prefix
+  urls.push(`https://static.summitracing.com/global/images/prod/xlarge/${originalPart}_xl.jpg`);
+  
+  // Try with different suffix variations
+  const basePartWithoutSuffix = originalPart
     .replace(/sk$/i, '')
     .replace(/im$/i, '')
     .replace(/-\d+$/, '');
   
-  if (basePartWithoutSuffix !== normalizedPart) {
+  if (basePartWithoutSuffix !== originalPart) {
     urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${basePartWithoutSuffix}_xl.jpg`);
   }
   
-  const numericMatch = normalizedPart.match(/^(\d+)/);
+  // Try numeric-only portion for WeatherTech products
+  const numericMatch = originalPart.match(/^(\d+)/);
   if (numericMatch && numericMatch[1].length >= 5) {
     const baseNumeric = numericMatch[1];
-    if (baseNumeric !== normalizedPart && baseNumeric !== basePartWithoutSuffix) {
+    if (baseNumeric !== originalPart && baseNumeric !== basePartWithoutSuffix) {
       urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${baseNumeric}_xl.jpg`);
     }
   }
@@ -61,19 +77,22 @@ function buildSummitRacingUrls(partNumber: string): string[] {
 }
 
 function sanitizeFilename(partNumber: string): string {
-  return partNumber.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
+  return 'tc-' + partNumber.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
 }
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function downloadProductImages(manufacturer?: string, limit?: number) {
+async function downloadProductImages(manufacturer?: string, limit?: number, dryRun: boolean = false) {
   if (!fs.existsSync(IMAGES_DIR)) {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
   }
   
   console.log('Fetching products from database...');
+  console.log(`Manufacturer filter: ${manufacturer || 'ALL'}`);
+  console.log(`Limit: ${limit || 'NONE'}`);
+  console.log(`Dry run: ${dryRun}`);
   
   const conditions = [];
   
@@ -81,13 +100,8 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
     conditions.push(ilike(products.manufacturer, `%${manufacturer}%`));
   }
   
-  conditions.push(
-    or(
-      isNull(products.imageUrl),
-      sql`${products.imageUrl} = ''`,
-      sql`${products.imageUrl} LIKE '%placehold%'`
-    )
-  );
+  // Only get products without images
+  conditions.push(isNull(products.imageUrl));
   
   let query = db.select({
     id: products.id,
@@ -103,7 +117,16 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
   
   const productList = await query;
   
-  console.log(`Found ${productList.length} products to process`);
+  console.log(`Found ${productList.length} products to process\n`);
+  
+  if (dryRun) {
+    console.log('DRY RUN - showing first 10 products:');
+    for (let i = 0; i < Math.min(10, productList.length); i++) {
+      const p = productList[i];
+      console.log(`  ${p.partNumber} | ${p.manufacturer} | ${p.partName}`);
+    }
+    return;
+  }
   
   let downloaded = 0;
   let failed = 0;
@@ -114,20 +137,27 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
     const filename = `${sanitizeFilename(product.partNumber)}.jpg`;
     const filepath = path.join(IMAGES_DIR, filename);
     
+    // Skip if file already exists locally
     if (fs.existsSync(filepath)) {
+      const imageUrl = `/${IMAGES_DIR}/${filename}`;
+      await db.update(products)
+        .set({ imageUrl, updatedAt: new Date() })
+        .where(eq(products.id, product.id));
       skipped++;
       continue;
     }
     
     const urls = buildSummitRacingUrls(product.partNumber);
     
-    console.log(`[${i + 1}/${productList.length}] Downloading: ${product.partNumber}`);
+    if ((i + 1) % 50 === 0 || i === 0) {
+      console.log(`[${i + 1}/${productList.length}] Processing: ${product.partNumber}`);
+    }
     
     let success = false;
     for (const url of urls) {
       success = await downloadImage(url, filepath);
       if (success) {
-        console.log(`  ✓ Downloaded from: ${url.split('/').pop()}`);
+        console.log(`  ✓ Downloaded: ${product.partNumber}`);
         break;
       }
     }
@@ -141,12 +171,11 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
         .where(eq(products.id, product.id));
     } else {
       failed++;
-      console.log(`  ✗ Failed: ${product.partNumber} (tried ${urls.length} URLs)`);
     }
     
     await sleep(DELAY_MS);
     
-    if ((i + 1) % 50 === 0) {
+    if ((i + 1) % 100 === 0) {
       console.log(`\nProgress: ${i + 1}/${productList.length} | Downloaded: ${downloaded} | Failed: ${failed} | Skipped: ${skipped}\n`);
     }
   }
@@ -156,15 +185,16 @@ async function downloadProductImages(manufacturer?: string, limit?: number) {
   console.log('========================================');
   console.log(`Total processed: ${productList.length}`);
   console.log(`Downloaded: ${downloaded}`);
-  console.log(`Failed: ${failed}`);
+  console.log(`Failed (no image found): ${failed}`);
   console.log(`Skipped (already exists): ${skipped}`);
 }
 
 const args = process.argv.slice(2);
 const manufacturer = args.find(a => a.startsWith('--manufacturer='))?.split('=')[1];
 const limit = args.find(a => a.startsWith('--limit='))?.split('=')[1];
+const dryRun = args.includes('--dry-run');
 
-downloadProductImages(manufacturer, limit ? parseInt(limit) : undefined)
+downloadProductImages(manufacturer, limit ? parseInt(limit) : undefined, dryRun)
   .then(() => {
     console.log('\nDone!');
     process.exit(0);

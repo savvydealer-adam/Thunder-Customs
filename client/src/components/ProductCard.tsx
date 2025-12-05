@@ -36,9 +36,12 @@ export function ProductCard({ product }: ProductCardProps) {
               data-testid={`img-product-${product.id}`}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-accent/30">
-              <div className="text-6xl font-bold text-muted-foreground/20">
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-muted/50 to-primary/10 border border-dashed border-muted-foreground/20">
+              <div className="text-4xl font-bold text-primary/30 mb-2">
                 {product.partName.charAt(0)}
+              </div>
+              <div className="text-xs text-muted-foreground text-center px-4">
+                Image Coming Soon
               </div>
             </div>
           )}
