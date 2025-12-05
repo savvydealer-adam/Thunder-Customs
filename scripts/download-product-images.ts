@@ -48,10 +48,33 @@ function buildImageUrls(partNumber: string, manufacturer: string): string[] {
   const originalPart = partNumber.toLowerCase().replace(/\s+/g, '');
   const upperPart = partNumber.toUpperCase().replace(/\s+/g, '');
   
+  // WeatherTech-specific CDN sources (highest priority for WeatherTech products)
+  if (manufacturer.toLowerCase().includes('weathertech')) {
+    // CARiD WeatherTech CDN - uses part number directly
+    urls.push(`https://ic.carid.com/weathertech/products/${partNumber}_1.jpg`);
+    urls.push(`https://ic.carid.com/weathertech/products/${upperPart}_1.jpg`);
+    urls.push(`https://images.carid.com/weathertech/products/${partNumber}.jpg`);
+    urls.push(`https://images.carid.com/weathertech/products/${upperPart}.jpg`);
+    
+    // WeatherTech floor mats specific patterns
+    urls.push(`https://ic.carid.com/weathertech/floor-mats/${partNumber}_1.jpg`);
+    urls.push(`https://ic.carid.com/weathertech/floor-mats/${upperPart}_1.jpg`);
+    
+    // Try oncar images with common vehicle patterns
+    urls.push(`https://ic.carid.com/weathertech/products/oncar/${partNumber}_1.jpg`);
+    urls.push(`https://images.carid.com/weathertech/products/oncar/${partNumber}.jpg`);
+  }
+  
   // Summit Racing CDN (works well for WeatherTech, N-Fab, K&N)
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${originalPart}_xl.jpg`);
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${normalizedPart}_xl.jpg`);
   urls.push(`https://static.summitracing.com/global/images/prod/xlarge/${originalPart}_xl.jpg`);
+  
+  // WeatherTech brand code patterns for Summit
+  if (manufacturer.toLowerCase().includes('weathertech')) {
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/wet-${originalPart}_xl.jpg`);
+    urls.push(`https://static.summitracing.com/global/images/prod/xlarge/wea-${originalPart}_xl.jpg`);
+  }
   
   // N-Fab specific patterns
   if (manufacturer.toLowerCase().includes('n-fab') || manufacturer.toLowerCase().includes('nfab')) {
@@ -83,6 +106,10 @@ function buildImageUrls(partNumber: string, manufacturer: string): string[] {
   
   if (basePartWithoutSuffix !== originalPart) {
     urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${basePartWithoutSuffix}_xl.jpg`);
+    // Also try CARiD with base part number
+    if (manufacturer.toLowerCase().includes('weathertech')) {
+      urls.push(`https://ic.carid.com/weathertech/products/${basePartWithoutSuffix}_1.jpg`);
+    }
   }
   
   // Try numeric-only portion for WeatherTech products
@@ -91,6 +118,10 @@ function buildImageUrls(partNumber: string, manufacturer: string): string[] {
     const baseNumeric = numericMatch[1];
     if (baseNumeric !== originalPart && baseNumeric !== basePartWithoutSuffix) {
       urls.push(`https://static.summitracing.com/global/images/prod/xlarge/mna-${baseNumeric}_xl.jpg`);
+      // Also try CARiD with numeric part
+      if (manufacturer.toLowerCase().includes('weathertech')) {
+        urls.push(`https://ic.carid.com/weathertech/products/${baseNumeric}_1.jpg`);
+      }
     }
   }
   
@@ -184,7 +215,8 @@ async function downloadProductImages(manufacturer?: string, limit?: number, dryR
       if (success) {
         // Determine source from URL
         if (url.includes('summitracing')) imageSource = 'summit_racing';
-        else if (url.includes('carid')) imageSource = 'carid';
+        else if (url.includes('ic.carid.com')) imageSource = 'carid_cdn';
+        else if (url.includes('images.carid.com')) imageSource = 'carid_hires';
         else if (url.includes('autoanything')) imageSource = 'autoanything';
         else if (url.includes('realtruck')) imageSource = 'realtruck';
         else imageSource = 'other';
