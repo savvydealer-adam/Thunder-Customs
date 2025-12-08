@@ -48,8 +48,8 @@ export class DatabaseStorage implements IStorage {
     
     const conditions = [];
     
-    // Always exclude hidden products for performance
-    conditions.push(eq(products.isHidden, false));
+    // Exclude hidden products (but include NULL values which are not explicitly hidden)
+    conditions.push(or(eq(products.isHidden, false), isNull(products.isHidden)));
     
     if (filters?.category) {
       conditions.push(eq(products.category, filters.category));

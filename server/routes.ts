@@ -59,19 +59,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get filter options (cached, lightweight)
+  // Get filter options derived from actual products
   app.get("/api/filters", async (_req, res) => {
     try {
+      const { db } = await import("./db");
+      const { products } = await import("@shared/schema");
+      const { sql, or, eq, isNull } = await import("drizzle-orm");
+      
+      const visibilityCondition = or(eq(products.isHidden, false), isNull(products.isHidden));
+      
       const [categoriesResult, manufacturersResult, vehicleMakesResult] = await Promise.all([
-        storage.getCategories(),
-        storage.getManufacturers(),
-        storage.getVehicleMakes(),
+        db.select({ name: products.category, count: sql<number>`count(*)::int` })
+          .from(products)
+          .where(visibilityCondition)
+          .groupBy(products.category)
+          .orderBy(products.category),
+        db.select({ name: products.manufacturer, count: sql<number>`count(*)::int` })
+          .from(products)
+          .where(visibilityCondition)
+          .groupBy(products.manufacturer)
+          .orderBy(products.manufacturer),
+        db.select({ name: products.vehicleMake, count: sql<number>`count(*)::int` })
+          .from(products)
+          .where(visibilityCondition)
+          .groupBy(products.vehicleMake)
+          .orderBy(products.vehicleMake),
       ]);
       
       res.json({
-        categories: categoriesResult.map(c => ({ value: c.name, label: c.name })),
-        manufacturers: manufacturersResult.map(m => ({ value: m.name, label: m.name })),
-        vehicleMakes: vehicleMakesResult.map(v => ({ value: v.name, label: v.name })),
+        categories: categoriesResult
+          .filter(c => c.name)
+          .map(c => ({ value: c.name, label: c.name, count: c.count })),
+        manufacturers: manufacturersResult
+          .filter(m => m.name)
+          .map(m => ({ value: m.name, label: m.name, count: m.count })),
+        vehicleMakes: vehicleMakesResult
+          .filter(v => v.name)
+          .map(v => ({ value: v.name!, label: v.name!, count: v.count })),
       });
     } catch (error) {
       console.error("Error fetching filters:", error);
