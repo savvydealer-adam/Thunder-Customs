@@ -3,8 +3,26 @@ import { products, categories, manufacturers, vehicleMakes, users, type Product,
 import { db } from "./db";
 import { eq, ilike, and, or, inArray, sql, isNull } from "drizzle-orm";
 
+export interface PaginatedProducts {
+  products: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface ProductFilters {
+  category?: string;
+  manufacturer?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface IStorage {
-  getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; vehicleModel?: string; search?: string }): Promise<Product[]>;
+  getProducts(filters?: ProductFilters): Promise<PaginatedProducts>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(products: InsertProduct[]): Promise<Product[]>;
@@ -23,8 +41,15 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getProducts(filters?: { category?: string; manufacturer?: string; vehicleMake?: string; vehicleModel?: string; search?: string }): Promise<Product[]> {
+  async getProducts(filters?: ProductFilters): Promise<PaginatedProducts> {
+    const page = filters?.page || 1;
+    const pageSize = Math.min(filters?.pageSize || 50, 100); // Cap at 100
+    const offset = (page - 1) * pageSize;
+    
     const conditions = [];
+    
+    // Always exclude hidden products for performance
+    conditions.push(eq(products.isHidden, false));
     
     if (filters?.category) {
       conditions.push(eq(products.category, filters.category));
@@ -39,20 +64,57 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(products.vehicleModel, filters.vehicleModel));
     }
     if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
       conditions.push(
         or(
-          ilike(products.partName, `%${filters.search}%`),
-          ilike(products.partNumber, `%${filters.search}%`),
-          ilike(products.category, `%${filters.search}%`)
+          ilike(products.partName, searchTerm),
+          ilike(products.partNumber, searchTerm),
+          ilike(products.manufacturer, searchTerm)
         )
       );
     }
 
-    const query = conditions.length > 0 
-      ? db.select().from(products).where(and(...conditions))
-      : db.select().from(products);
+    const whereClause = and(...conditions);
 
-    return await query;
+    // Get total count first (optimized query)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(whereClause);
+    
+    const total = countResult?.count || 0;
+
+    // Get paginated products with only essential fields for list view
+    const productList = await db
+      .select({
+        id: products.id,
+        partNumber: products.partNumber,
+        partName: products.partName,
+        manufacturer: products.manufacturer,
+        category: products.category,
+        vehicleMake: products.vehicleMake,
+        vehicleModel: products.vehicleModel,
+        price: products.price,
+        partMSRP: products.partMSRP,
+        totalRetail: products.totalRetail,
+        imageUrl: products.imageUrl,
+        isPopular: products.isPopular,
+        isHidden: products.isHidden,
+        stockQuantity: products.stockQuantity,
+      })
+      .from(products)
+      .where(whereClause)
+      .orderBy(products.partName)
+      .limit(pageSize)
+      .offset(offset);
+
+    return {
+      products: productList as Product[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getProduct(id: number): Promise<Product | undefined> {

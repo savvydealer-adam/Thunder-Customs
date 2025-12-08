@@ -1,62 +1,105 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilters } from "@/components/ProductFilters";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AlertCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Product } from "@shared/schema";
+
+interface PaginatedProducts {
+  products: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
+interface FiltersData {
+  categories: FilterOption[];
+  manufacturers: FilterOption[];
+  vehicleMakes: FilterOption[];
+}
 
 export default function Products() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedManufacturers, setSelectedManufacturers] = useState<string[]>([]);
   const [selectedVehicleMakes, setSelectedVehicleMakes] = useState<string[]>([]);
   const [selectedVehicleModels, setSelectedVehicleModels] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 48;
 
   const buildFilteredUrl = () => {
     const params = new URLSearchParams();
+    params.set('page', currentPage.toString());
+    params.set('pageSize', pageSize.toString());
+    
     if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
     if (selectedManufacturers.length === 1) params.set('manufacturer', selectedManufacturers[0]);
     if (selectedVehicleMakes.length === 1) params.set('vehicleMake', selectedVehicleMakes[0]);
     if (selectedVehicleModels.length === 1) params.set('vehicleModel', selectedVehicleModels[0]);
-    const query = params.toString();
-    return query ? `/api/products?${query}` : '/api/products';
+    if (searchQuery) params.set('search', searchQuery);
+    
+    return `/api/products?${params.toString()}`;
   };
 
-  const hasSingleFilter = 
-    (selectedCategories.length === 1 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 0) ||
-    (selectedCategories.length === 0 && selectedManufacturers.length === 1 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 0) ||
-    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 1 && selectedVehicleModels.length === 0) ||
-    (selectedCategories.length === 0 && selectedManufacturers.length === 0 && selectedVehicleMakes.length === 0 && selectedVehicleModels.length === 1);
-
-  const { data: products, isLoading, error } = useQuery<Product[]>({
-    queryKey: [buildFilteredUrl()],
+  const { data: filtersData } = useQuery<FiltersData>({
+    queryKey: ['/api/filters'],
+    staleTime: 5 * 60 * 1000,
   });
+
+  const { data, isLoading, error, isFetching } = useQuery<PaginatedProducts>({
+    queryKey: ['/api/products', currentPage, selectedCategories, selectedManufacturers, selectedVehicleMakes, selectedVehicleModels, searchQuery],
+    queryFn: async () => {
+      const res = await fetch(buildFilteredUrl());
+      if (!res.ok) throw new Error('Failed to fetch products');
+      return res.json();
+    },
+    staleTime: 30 * 1000,
+  });
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchQuery(searchInput);
+    setCurrentPage(1);
+  };
 
   const handleCategoryChange = (category: string, checked: boolean) => {
     setSelectedCategories(prev =>
       checked ? [...prev, category] : prev.filter(c => c !== category)
     );
+    setCurrentPage(1);
   };
 
   const handleManufacturerChange = (manufacturer: string, checked: boolean) => {
     setSelectedManufacturers(prev =>
       checked ? [...prev, manufacturer] : prev.filter(m => m !== manufacturer)
     );
+    setCurrentPage(1);
   };
 
   const handleVehicleMakeChange = (make: string, checked: boolean) => {
     setSelectedVehicleMakes(prev =>
       checked ? [...prev, make] : prev.filter(m => m !== make)
     );
-    // Clear model selection when make changes
     setSelectedVehicleModels([]);
+    setCurrentPage(1);
   };
 
   const handleVehicleModelChange = (model: string, checked: boolean) => {
     setSelectedVehicleModels(prev =>
       checked ? [...prev, model] : prev.filter(m => m !== model)
     );
+    setCurrentPage(1);
   };
 
   const handleClearAll = () => {
@@ -64,93 +107,68 @@ export default function Products() {
     setSelectedManufacturers([]);
     setSelectedVehicleMakes([]);
     setSelectedVehicleModels([]);
+    setSearchQuery("");
+    setSearchInput("");
+    setCurrentPage(1);
   };
 
-  const filteredProducts = products?.filter(product => {
-    if (!hasSingleFilter) {
-      if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) {
-        return false;
-      }
-      if (selectedManufacturers.length > 0 && !selectedManufacturers.includes(product.manufacturer)) {
-        return false;
-      }
-      if (selectedVehicleMakes.length > 0 && product.vehicleMake && !selectedVehicleMakes.includes(product.vehicleMake)) {
-        return false;
-      }
-      if (selectedVehicleModels.length > 0 && (!product.vehicleModel || !selectedVehicleModels.includes(product.vehicleModel))) {
-        return false;
-      }
-    }
-    if (product.isHidden) {
-      return false;
-    }
-    return true;
-  }) || [];
+  const categories = useMemo(() => 
+    filtersData?.categories || [], 
+    [filtersData]
+  );
 
-  const categories = Array.from(new Set(products?.map(p => p.category) || []))
-    .filter(Boolean)
-    .sort()
-    .map(cat => ({
-      value: cat,
-      label: cat,
-      count: products?.filter(p => p.category === cat && !p.isHidden).length || 0,
-    }));
+  const manufacturers = useMemo(() => 
+    filtersData?.manufacturers || [], 
+    [filtersData]
+  );
 
-  const manufacturers = Array.from(new Set(products?.map(p => p.manufacturer) || []))
-    .filter(Boolean)
-    .sort()
-    .map(mfr => ({
-      value: mfr,
-      label: mfr,
-      count: products?.filter(p => p.manufacturer === mfr && !p.isHidden).length || 0,
-    }));
+  const vehicleMakes = useMemo(() => 
+    filtersData?.vehicleMakes || [], 
+    [filtersData]
+  );
 
-  const vehicleMakes = Array.from(new Set(products?.map(p => p.vehicleMake).filter(Boolean) || []))
-    .sort()
-    .map(make => ({
-      value: make!,
-      label: make!,
-      count: products?.filter(p => p.vehicleMake === make && !p.isHidden).length || 0,
-    }));
-
-  // Get models for the selected make(s)
-  const vehicleModels = selectedVehicleMakes.length === 1
-    ? Array.from(new Set(
-        products
-          ?.filter(p => p.vehicleMake === selectedVehicleMakes[0] && p.vehicleModel)
-          .map(p => p.vehicleModel!)
-          .filter(Boolean) || []
-      ))
-        .sort()
-        .map(model => ({
-          value: model,
-          label: model,
-          count: products?.filter(p => p.vehicleModel === model && !p.isHidden).length || 0,
-        }))
-    : [];
+  const products = data?.products || [];
+  const totalPages = data?.totalPages || 1;
+  const total = data?.total || 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-muted/10 to-background">
       <main className="flex-1">
         <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b">
-          <div className="container mx-auto px-4 py-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-3">Shop Parts</h1>
-            <p className="text-muted-foreground text-lg">
+          <div className="container mx-auto px-4 py-8">
+            <h1 className="text-3xl md:text-4xl font-bold mb-3">Shop Parts</h1>
+            <p className="text-muted-foreground text-lg mb-4">
               Browse our complete catalog of automotive accessories
             </p>
+            
+            <form onSubmit={handleSearch} className="flex gap-2 max-w-xl">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  data-testid="input-search"
+                  type="text"
+                  placeholder="Search by part number, name, or manufacturer..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button type="submit" data-testid="button-search">
+                Search
+              </Button>
+            </form>
           </div>
         </div>
 
-        <div className="container mx-auto px-4 py-8">
-
-          <div className="flex flex-col lg:flex-row gap-8">
-            <aside className="lg:w-80 flex-shrink-0">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <aside className="lg:w-72 flex-shrink-0">
               <div className="lg:sticky lg:top-24">
                 <ProductFilters
                   categories={categories}
                   manufacturers={manufacturers}
                   vehicleMakes={vehicleMakes}
-                  vehicleModels={vehicleModels}
+                  vehicleModels={[]}
                   selectedCategories={selectedCategories}
                   selectedManufacturers={selectedManufacturers}
                   selectedVehicleMakes={selectedVehicleMakes}
@@ -174,37 +192,122 @@ export default function Products() {
                 </Alert>
               )}
 
-              <div className="mb-6 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
+              <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
+                <p className="text-sm text-muted-foreground" data-testid="text-product-count">
                   {isLoading ? (
                     "Loading products..."
                   ) : (
-                    `Showing ${filteredProducts.length} products`
+                    <>Showing {products.length} of {total.toLocaleString()} products</>
                   )}
                 </p>
+                
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1 || isFetching}
+                      data-testid="button-prev-page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages || isFetching}
+                      data-testid="button-next-page"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="space-y-3">
                       <Skeleton className="aspect-square w-full" />
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
                     </div>
                   ))}
                 </div>
-              ) : filteredProducts.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
+              ) : products.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                  
+                  {totalPages > 1 && (
+                    <div className="mt-8 flex justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1 || isFetching}
+                        data-testid="button-prev-page-bottom"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              disabled={isFetching}
+                              data-testid={`button-page-${pageNum}`}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages || isFetching}
+                        data-testid="button-next-page-bottom"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-16">
                   <p className="text-muted-foreground">
                     No products found matching your filters.
                   </p>
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleClearAll}
+                    className="mt-2"
+                    data-testid="button-clear-filters"
+                  >
+                    Clear all filters
+                  </Button>
                 </div>
               )}
             </div>

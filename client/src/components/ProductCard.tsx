@@ -32,6 +32,8 @@ export function ProductCard({ product }: ProductCardProps) {
             <img 
               src={product.imageUrl} 
               alt={product.partName}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-transform group-hover:scale-105"
               data-testid={`img-product-${product.id}`}
             />

@@ -39,21 +39,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public product routes
+  // Public product routes with pagination
   app.get("/api/products", async (req, res) => {
     try {
-      const { category, manufacturer, vehicleMake, vehicleModel, search } = req.query;
-      const products = await storage.getProducts({
+      const { category, manufacturer, vehicleMake, vehicleModel, search, page, pageSize } = req.query;
+      const result = await storage.getProducts({
         category: category as string | undefined,
         manufacturer: manufacturer as string | undefined,
         vehicleMake: vehicleMake as string | undefined,
         vehicleModel: vehicleModel as string | undefined,
         search: search as string | undefined,
+        page: page ? parseInt(page as string) : 1,
+        pageSize: pageSize ? parseInt(pageSize as string) : 50,
       });
-      res.json(products);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  // Get filter options (cached, lightweight)
+  app.get("/api/filters", async (_req, res) => {
+    try {
+      const [categoriesResult, manufacturersResult, vehicleMakesResult] = await Promise.all([
+        storage.getCategories(),
+        storage.getManufacturers(),
+        storage.getVehicleMakes(),
+      ]);
+      
+      res.json({
+        categories: categoriesResult.map(c => ({ value: c.name, label: c.name })),
+        manufacturers: manufacturersResult.map(m => ({ value: m.name, label: m.name })),
+        vehicleMakes: vehicleMakesResult.map(v => ({ value: v.name, label: v.name })),
+      });
+    } catch (error) {
+      console.error("Error fetching filters:", error);
+      res.status(500).json({ error: "Failed to fetch filters" });
     }
   });
 
