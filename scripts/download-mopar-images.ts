@@ -5,38 +5,90 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const IMAGES_DIR = 'attached_assets/product_images';
-const DELAY_MS = 500;
+const DELAY_MS = 800;
 const PLACEHOLDER_SIZE = 11279;
 
-async function fetchMoparImage(partNumber: string): Promise<string | null> {
+const CDN_BASE = 'https://d2dkltr9lfc7et.cloudfront.net';
+
+async function fetchMoparOnlinePartsImage(partNumber: string): Promise<string | null> {
   const cleanPart = partNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const upperPart = partNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const url = `https://www.moparonlineparts.com/sku/${cleanPart}.html`;
   
-  const searchUrls = [
-    `https://www.moparpartsonsale.com/oem-parts/mopar-${cleanPart}`,
-    `https://www.moparpartsonsale.com/search?search_str=${upperPart}`,
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      }
+    });
+    
+    if (!response.ok) return null;
+    
+    const html = await response.text();
+    
+    const imageMatch = html.match(/d2dkltr9lfc7et\.cloudfront\.net\/production\/catalog\/product\/[^"'\s]+\.(jpg|png)/gi);
+    if (imageMatch && imageMatch.length > 0) {
+      const imageUrl = imageMatch.find(url => !url.includes('cache') && !url.includes('thumbnail'));
+      if (imageUrl) {
+        return 'https://' + imageUrl;
+      }
+      return 'https://' + imageMatch[0];
+    }
+  } catch (error) {
+    console.log(`  Error fetching MoparOnlineParts:`, error);
+  }
+  
+  return null;
+}
+
+async function fetchMoparPartsGiantImage(partNumber: string): Promise<string | null> {
+  const cleanPart = partNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const url = `https://www.moparpartsgiant.com/parts/mopar-*~${cleanPart}.html`;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      redirect: 'follow'
+    });
+    
+    if (!response.ok) return null;
+    
+    const html = await response.text();
+    
+    const imageMatch = html.match(/https?:\/\/[^"'\s]+moparpartsgiant[^"'\s]+\.(jpg|png)/gi);
+    if (imageMatch && imageMatch.length > 0) {
+      return imageMatch[0];
+    }
+  } catch (error) {
+    console.log(`  Error fetching MoparPartsGiant:`, error);
+  }
+  
+  return null;
+}
+
+async function tryDirectCDN(partNumber: string): Promise<string | null> {
+  const cleanPart = partNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const char1 = cleanPart.charAt(0);
+  const char2 = cleanPart.charAt(1);
+  
+  const variations = [
+    `${CDN_BASE}/production/catalog/product/${char1}/${char2}/${cleanPart}.jpg`,
+    `${CDN_BASE}/production/catalog/product/${char1}/${char2}/${cleanPart}-1.jpg`,
+    `${CDN_BASE}/production/catalog/product/${char1}/${char2}/${cleanPart}-19.jpg`,
+    `${CDN_BASE}/production/catalog/product/${char1}/${char2}/${cleanPart.toUpperCase()}.jpg`,
+    `${CDN_BASE}/production/catalog/product/${char1}/${char2}/${cleanPart.toUpperCase()}-1.jpg`,
   ];
   
-  for (const searchUrl of searchUrls) {
+  for (const url of variations) {
     try {
-      const response = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        }
-      });
-      
-      if (!response.ok) continue;
-      
-      const html = await response.text();
-      
-      const imageMatch = html.match(/https:\/\/cdn\.revolutionparts\.io\/images\/[a-f0-9]+\/[a-f0-9]+\.jpg/);
-      if (imageMatch) {
-        return imageMatch[0];
+      const response = await fetch(url, { method: 'HEAD' });
+      if (response.ok) {
+        return url;
       }
-    } catch (error) {
-      console.log(`  Error fetching ${searchUrl}:`, error);
-    }
+    } catch {}
   }
   
   return null;
@@ -71,7 +123,8 @@ async function downloadImage(url: string, filepath: string): Promise<boolean> {
 
 function isPlaceholder(imagePath: string): boolean {
   try {
-    const stats = fs.statSync(imagePath);
+    const fullPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    const stats = fs.statSync(fullPath);
     return stats.size === PLACEHOLDER_SIZE;
   } catch {
     return true;
@@ -84,8 +137,8 @@ async function main() {
   const dryRun = args.includes('--dry-run');
   const manufacturer = args.find(a => a.startsWith('--manufacturer='))?.split('=')[1];
   
-  console.log('Mopar Image Downloader');
-  console.log('======================');
+  console.log('Mopar Image Downloader v2');
+  console.log('=========================');
   console.log(`Limit: ${limit}, Dry run: ${dryRun}`);
   if (manufacturer) console.log(`Manufacturer filter: ${manufacturer}`);
   
@@ -106,7 +159,7 @@ async function main() {
       or(eq(products.isHidden, false), isNull(products.isHidden))
     )
   )
-  .limit(limit * 2);
+  .limit(limit * 3);
   
   const productsWithPlaceholders = productsToProcess.filter(p => {
     if (!p.imageUrl) return true;
@@ -128,17 +181,24 @@ async function main() {
   let failed = 0;
   
   for (const product of productsWithPlaceholders) {
-    console.log(`\nProcessing ${product.partNumber}...`);
+    console.log(`\n[${downloaded + failed + 1}/${productsWithPlaceholders.length}] ${product.partNumber}...`);
     
-    const imageUrl = await fetchMoparImage(product.partNumber);
+    let imageUrl = await fetchMoparOnlinePartsImage(product.partNumber);
+    let source = 'moparonlineparts';
+    
+    if (!imageUrl) {
+      imageUrl = await tryDirectCDN(product.partNumber);
+      source = 'cloudfront-direct';
+    }
     
     if (!imageUrl) {
       console.log(`  No image found`);
       failed++;
+      await new Promise(resolve => setTimeout(resolve, 300));
       continue;
     }
     
-    console.log(`  Found: ${imageUrl.substring(0, 60)}...`);
+    console.log(`  Found: ${imageUrl.substring(0, 70)}...`);
     
     const filename = `tc-${product.partNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`;
     const filepath = path.join(IMAGES_DIR, filename);
@@ -150,7 +210,7 @@ async function main() {
       await db.update(products)
         .set({ 
           imageUrl: dbPath,
-          imageSource: 'revolutionparts'
+          imageSource: source
         })
         .where(eq(products.id, product.id));
       
@@ -164,9 +224,10 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, DELAY_MS));
   }
   
-  console.log('\n======================');
+  console.log('\n=========================');
   console.log(`Downloaded: ${downloaded}`);
   console.log(`Failed: ${failed}`);
+  console.log(`Success rate: ${((downloaded / (downloaded + failed)) * 100).toFixed(1)}%`);
 }
 
 main().catch(console.error);
