@@ -57,26 +57,37 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 
 ## Product Image System (Updated December 2025)
 
-- **10,505 real product images** downloaded from manufacturer sources (CARiD CDN, Summit Racing, AutoAnything, RealTruck)
-- **99.4% coverage** of entire catalog with verified product-specific images
+- **10,568 product images** - 100% catalog coverage achieved!
+- **10,505 real manufacturer images** from CARiD CDN, Summit Racing, AutoAnything, RealTruck
+- **63 category placeholders** for service packages (tires, window film, alignment, etc.)
 - **tc- naming convention**: All images use Thunder Customs prefix (e.g., `tc-456401.jpg`)
 - **Image tracking**: `imageSource` field tracks where each image came from; `imageAttemptedAt` prevents re-trying failed downloads
-- **Placeholder system**: Products without images show "Image Coming Soon" placeholder instead of incorrect stock photos
 
 ### Image Download Script
 - Location: `scripts/download-product-images.ts`
 - Flags: `--manufacturer=X`, `--limit=N`, `--dry-run`, `--retry`
 - Sources: CARiD CDN (WeatherTech), Summit Racing, AutoAnything, RealTruck
 
-### Coverage by Manufacturer (100% Complete)
-- WeatherTech: 6,577 images (100%)
-- Jeep: 932 images (100%)
-- RAM: 641 images (100%)
-- Affiliated Accessories: 453 images (100%)
-- N-Fab: 371 images (100%)
-- Dodge: 261 images (100%)
-- Mopar: 186 images (100%)
-- Dealership Packages: 58 images (100%)
-- Chrysler: 56 images (100%)
-- Universal: 800/846 images (95%)
-- Window Film: 140/147 images (95%)
+### Coverage by Manufacturer (All 100% Complete)
+- WeatherTech: 6,577 images
+- Jeep: 932 images
+- Universal: 846 images (includes category placeholders for service packages)
+- RAM: 641 images
+- Affiliated Accessories: 453 images
+- N-Fab: 371 images
+- Dodge: 261 images
+- Mopar: 186 images
+- Window Film: 147 images (includes category placeholders)
+- Dealership Packages: 58 images
+- Chrysler: 56 images
+- K&N: 10 images (category placeholders)
+
+### Category Placeholder Images
+Located in `attached_assets/product_images/`:
+- `tc-category-kn-filter.png` - K&N air filters
+- `tc-category-tires.png` - Tire packages
+- `tc-category-tonneau.png` - Tonneau covers
+- `tc-category-window-film.png` - Window tinting services
+- `tc-category-truck-steps.png` - Running boards/side steps
+- `tc-category-alignment.png` - Alignment services
+- `tc-category-splash-guards.png` - Splash guards
