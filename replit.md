@@ -57,37 +57,41 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 
 ## Product Image System (Updated December 2025)
 
-- **10,568 product images** - 100% catalog coverage achieved!
-- **10,505 real manufacturer images** from CARiD CDN, Summit Racing, AutoAnything, RealTruck
-- **63 category placeholders** for service packages (tires, window film, alignment, etc.)
+- **10,568 total products** in catalog
+- **1,813 real manufacturer images** (17.1% coverage) from CARiD CDN, MoparOnlineParts CDN
+- **8,692 placeholder images** showing "Image Coming Soon" 
 - **tc- naming convention**: All images use Thunder Customs prefix (e.g., `tc-456401.jpg`)
 - **Image tracking**: `imageSource` field tracks where each image came from; `imageAttemptedAt` prevents re-trying failed downloads
 
-### Image Download Script
-- Location: `scripts/download-product-images.ts`
-- Flags: `--manufacturer=X`, `--limit=N`, `--dry-run`, `--retry`
-- Sources: CARiD CDN (WeatherTech), Summit Racing, AutoAnything, RealTruck
+### Image Download Scripts
+1. `scripts/download-product-images.ts` - CARiD CDN for WeatherTech and N-Fab
+   - Flags: `--manufacturer=X`, `--limit=N`, `--dry-run`, `--retry`
+2. `scripts/download-mopar-images.ts` - MoparOnlineParts CDN for Mopar OEM parts
+   - Flags: `--manufacturer=X`, `--limit=N`
+   - Works for: Dodge, Jeep, RAM, Chrysler (standard Mopar part numbers)
+   - Does NOT work for: AA- prefixed parts (Affiliated Accessories)
 
-### Coverage by Manufacturer (All 100% Complete)
-- WeatherTech: 6,577 images
-- Jeep: 932 images
-- Universal: 846 images (includes category placeholders for service packages)
-- RAM: 641 images
-- Affiliated Accessories: 453 images
-- N-Fab: 371 images
-- Dodge: 261 images
-- Mopar: 186 images
-- Window Film: 147 images (includes category placeholders)
-- Dealership Packages: 58 images
-- Chrysler: 56 images
-- K&N: 10 images (category placeholders)
+### Coverage by Manufacturer (December 2025)
+- WeatherTech: 1,594/6,583 real (24.2%) - CARiD CDN
+- N-Fab: 108/371 real (29.1%) - CARiD CDN
+- Dodge: 39/261 real (14.9%) - MoparOnlineParts CDN
+- Jeep: 29/932 real (3.1%) - MoparOnlineParts CDN
+- RAM: 37/641 real (5.8%) - MoparOnlineParts CDN
+- Chrysler: 6/56 real (10.7%) - MoparOnlineParts CDN
+- Universal: 0/846 (0%) - No external source available
+- Affiliated Accessories: 0/453 (0%) - AA- prefix not on standard retailers
+- Mopar: 0/186 (0%) - AA- prefix (actually Affiliated Accessories)
+- Window Film: 0/147 (0%) - Service package, no standard images
+- Dealership Packages: 0/58 (0%) - Service package, no standard images
+- K&N: 0/10 (0%) - Too few products to prioritize
 
-### Category Placeholder Images
-Located in `attached_assets/product_images/`:
-- `tc-category-kn-filter.png` - K&N air filters
-- `tc-category-tires.png` - Tire packages
-- `tc-category-tonneau.png` - Tonneau covers
-- `tc-category-window-film.png` - Window tinting services
-- `tc-category-truck-steps.png` - Running boards/side steps
-- `tc-category-alignment.png` - Alignment services
-- `tc-category-splash-guards.png` - Splash guards
+### Placeholder Image
+- All 8,692 placeholders are identical 11,279-byte files showing "Image Coming Soon"
+- Located at: `attached_assets/product_images/tc-{partnumber}.jpg`
+
+### Improving Image Coverage
+To increase real image coverage, options include:
+1. Contact WeatherTech for dealer image access (they restrict scraping)
+2. Obtain manufacturer image packs from distributor portal
+3. Photograph products manually as inventory is received
+4. Use category-specific placeholder images for service packages
