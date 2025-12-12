@@ -57,11 +57,12 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 
 ## Product Catalog (Updated December 2025)
 
-- **9,893 verified products** in catalog (cleaned from 10,568 - removed 675 fake AA- products from bad PDF import)
-- **1,813 real manufacturer images** (18.3% coverage) from CARiD CDN, MoparOnlineParts CDN
-- **8,080 placeholder images** showing "Image Coming Soon" 
+- **8,997 verified products** in catalog (fully audited against 35 official XLS files)
+- **Cleanup performed**: Removed 1,571 unverified products total (675 corrupted AA- products + 896 products not in XLS files)
+- **1,813 real manufacturer images** (~20% coverage) from CARiD CDN, MoparOnlineParts CDN
 - **tc- naming convention**: All images use Thunder Customs prefix (e.g., `tc-456401.jpg`)
 - **Image tracking**: `imageSource` field tracks where each image came from; `imageAttemptedAt` prevents re-trying failed downloads
+- **Audit script**: `scripts/audit-database.ts` verifies all products exist in official XLS source files
 
 ### Image Download Scripts
 1. `scripts/download-product-images.ts` - CARiD CDN for WeatherTech and N-Fab
