@@ -55,11 +55,11 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 - **connect-pg-simple**: PostgreSQL session store.
 - **date-fns**: Date formatting and manipulation.
 
-## Product Image System (Updated December 2025)
+## Product Catalog (Updated December 2025)
 
-- **10,568 total products** in catalog
-- **1,813 real manufacturer images** (17.1% coverage) from CARiD CDN, MoparOnlineParts CDN
-- **8,692 placeholder images** showing "Image Coming Soon" 
+- **9,893 verified products** in catalog (cleaned from 10,568 - removed 675 fake AA- products from bad PDF import)
+- **1,813 real manufacturer images** (18.3% coverage) from CARiD CDN, MoparOnlineParts CDN
+- **8,080 placeholder images** showing "Image Coming Soon" 
 - **tc- naming convention**: All images use Thunder Customs prefix (e.g., `tc-456401.jpg`)
 - **Image tracking**: `imageSource` field tracks where each image came from; `imageAttemptedAt` prevents re-trying failed downloads
 
