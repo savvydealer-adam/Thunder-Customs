@@ -112,15 +112,20 @@ export const leads = pgTable("leads", {
   firstName: varchar("first_name", { length: 100 }).notNull(),
   lastName: varchar("last_name", { length: 100 }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 50 }),
+  phone: varchar("phone", { length: 50 }).notNull(),
+  preferredContact: varchar("preferred_contact", { length: 20 }).default('phone'), // 'phone', 'email', 'text'
+  vehicleInfo: text("vehicle_info"), // Year/Make/Model they're shopping for
   comments: text("comments"),
   cartItems: jsonb("cart_items").notNull(), // Store cart snapshot
   cartTotal: decimal("cart_total", { precision: 10, scale: 2 }),
+  itemCount: integer("item_count").notNull(),
   adfXml: text("adf_xml"), // Store generated ADF XML
-  status: varchar("status", { length: 50 }).notNull().default('new'), // new, contacted, quoted, sold, lost
+  status: varchar("status", { length: 50 }).notNull().default('new'), // new, contacted, quoted, sold, closed
+  assignedTo: varchar("assigned_to", { length: 255 }), // Employee who claimed the lead
   submittedBy: varchar("submitted_by"), // User ID if logged in
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  contactedAt: timestamp("contacted_at"),
 });
 
 export const insertProductSchema = createInsertSchema(products).omit({

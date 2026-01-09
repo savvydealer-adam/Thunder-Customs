@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Download, Mail, Phone, Calendar, Package, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Download, Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, MessageSquare, Car } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -16,12 +20,17 @@ interface Lead {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string | null;
+  phone: string;
+  preferredContact: string | null;
+  vehicleInfo: string | null;
   comments: string | null;
   cartItems: any[];
   cartTotal: string | null;
+  itemCount: number;
   status: string;
+  assignedTo: string | null;
   createdAt: string;
+  contactedAt: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -29,34 +38,81 @@ const statusColors: Record<string, string> = {
   contacted: "bg-yellow-500",
   quoted: "bg-purple-500",
   sold: "bg-green-500",
-  lost: "bg-red-500",
+  closed: "bg-gray-500",
+};
+
+const statusLabels: Record<string, string> = {
+  new: "New",
+  contacted: "Contacted",
+  quoted: "Quoted",
+  sold: "Sold",
+  closed: "Closed",
 };
 
 export default function Leads() {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
-    queryKey: ['/api/leads'],
+    queryKey: ['/api/leads', statusFilter, searchQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (searchQuery) params.set('search', searchQuery);
+      const response = await fetch(`/api/leads?${params.toString()}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch leads');
+      return response.json();
+    },
     enabled: isAuthenticated,
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      return await apiRequest('PATCH', `/api/leads/${id}/status`, { status });
+  const { data: stats } = useQuery<{ status: string; count: number }[]>({
+    queryKey: ['/api/leads/stats'],
+    enabled: isAuthenticated,
+  });
+
+  const updateLeadMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return await apiRequest('PATCH', `/api/leads/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leads/stats'] });
       toast({
-        title: "Status Updated",
-        description: "Lead status has been updated.",
+        title: "Lead Updated",
+        description: "Lead has been updated successfully.",
       });
     },
     onError: () => {
       toast({
         title: "Update Failed",
-        description: "Failed to update lead status.",
+        description: "Failed to update lead.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest('DELETE', `/api/leads/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leads/stats'] });
+      setSelectedLead(null);
+      toast({
+        title: "Lead Deleted",
+        description: "Lead has been removed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete lead.",
         variant: "destructive",
       });
     },
@@ -87,6 +143,23 @@ export default function Leads() {
     }
   };
 
+  const handleClaimLead = (lead: Lead) => {
+    if (user) {
+      updateLeadMutation.mutate({
+        id: lead.id,
+        data: { assignedTo: user.email || user.id },
+      });
+    }
+  };
+
+  const getStatCount = (status: string) => {
+    if (!stats) return 0;
+    const stat = stats.find(s => s.status === status);
+    return stat?.count || 0;
+  };
+
+  const totalLeads = stats?.reduce((sum, s) => sum + s.count, 0) || 0;
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -109,6 +182,42 @@ export default function Leads() {
           </p>
         </div>
 
+        <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email, or phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-lead-search"
+            />
+          </div>
+        </div>
+
+        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="all" data-testid="tab-all">
+              All ({totalLeads})
+            </TabsTrigger>
+            <TabsTrigger value="new" data-testid="tab-new">
+              New ({getStatCount('new')})
+            </TabsTrigger>
+            <TabsTrigger value="contacted" data-testid="tab-contacted">
+              Contacted ({getStatCount('contacted')})
+            </TabsTrigger>
+            <TabsTrigger value="quoted" data-testid="tab-quoted">
+              Quoted ({getStatCount('quoted')})
+            </TabsTrigger>
+            <TabsTrigger value="sold" data-testid="tab-sold">
+              Sold ({getStatCount('sold')})
+            </TabsTrigger>
+            <TabsTrigger value="closed" data-testid="tab-closed">
+              Closed ({getStatCount('closed')})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -117,45 +226,156 @@ export default function Leads() {
           <Card>
             <CardContent className="py-12 text-center">
               <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Leads Yet</h3>
+              <h3 className="text-lg font-semibold mb-2">No Leads Found</h3>
               <p className="text-muted-foreground">
-                Customer requests will appear here when submitted.
+                {searchQuery || statusFilter !== 'all' 
+                  ? "No leads match your current filters." 
+                  : "Customer requests will appear here when submitted."}
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4">
             {leads.map((lead) => (
-              <Card key={lead.id} data-testid={`lead-card-${lead.id}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div>
-                      <CardTitle className="text-lg">
-                        {lead.firstName} {lead.lastName}
-                      </CardTitle>
-                      <div className="flex flex-wrap gap-3 mt-2 text-sm text-muted-foreground">
+              <Card key={lead.id} className="hover-elevate cursor-pointer" onClick={() => setSelectedLead(lead)}>
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="font-semibold text-lg" data-testid={`text-lead-name-${lead.id}`}>
+                          {lead.firstName} {lead.lastName}
+                        </h3>
+                        <Badge className={statusColors[lead.status]} data-testid={`badge-status-${lead.id}`}>
+                          {statusLabels[lead.status] || lead.status}
+                        </Badge>
+                        {lead.assignedTo && (
+                          <Badge variant="outline" className="gap-1">
+                            <User className="h-3 w-3" />
+                            {lead.assignedTo}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Mail className="h-4 w-4" />
                           {lead.email}
                         </span>
-                        {lead.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-4 w-4" />
-                            {lead.phone}
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-4 w-4" />
+                          {lead.phone}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Package className="h-4 w-4" />
+                          {lead.itemCount} item(s)
+                        </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {format(new Date(lead.createdAt), 'MMM d, yyyy h:mm a')}
+                          {format(new Date(lead.createdAt), "MMM d, yyyy 'at' h:mm a")}
                         </span>
                       </div>
+                      {lead.vehicleInfo && (
+                        <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
+                          <Car className="h-4 w-4" />
+                          {lead.vehicleInfo}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Select
-                        value={lead.status}
-                        onValueChange={(status) => updateStatusMutation.mutate({ id: lead.id, status })}
+                    <div className="flex items-center gap-2">
+                      {lead.cartTotal && (
+                        <span className="font-semibold text-lg">${parseFloat(lead.cartTotal).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={!!selectedLead} onOpenChange={(open) => !open && setSelectedLead(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            {selectedLead && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    {selectedLead.firstName} {selectedLead.lastName}
+                    <Badge className={statusColors[selectedLead.status]}>
+                      {statusLabels[selectedLead.status] || selectedLead.status}
+                    </Badge>
+                  </DialogTitle>
+                  <DialogDescription>
+                    Submitted {format(new Date(selectedLead.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium">{selectedLead.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Phone</p>
+                      <p className="font-medium">{selectedLead.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Preferred Contact</p>
+                      <p className="font-medium capitalize">{selectedLead.preferredContact || 'Phone'}</p>
+                    </div>
+                    {selectedLead.vehicleInfo && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Vehicle</p>
+                        <p className="font-medium">{selectedLead.vehicleInfo}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedLead.comments && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Customer Notes</p>
+                      <p className="text-sm bg-muted p-3 rounded-md">{selectedLead.comments}</p>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold">Cart Items ({selectedLead.itemCount})</h4>
+                      {selectedLead.cartTotal && (
+                        <span className="font-semibold text-lg">${parseFloat(selectedLead.cartTotal).toFixed(2)}</span>
+                      )}
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {selectedLead.cartItems.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between items-center text-sm bg-muted p-2 rounded">
+                          <div>
+                            <p className="font-medium">{item.product.partName}</p>
+                            <p className="text-muted-foreground">
+                              {item.product.partNumber} · {item.product.manufacturer}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p>Qty: {item.quantity}</p>
+                            {item.product.price && (
+                              <p className="text-muted-foreground">${item.product.price}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 min-w-[200px]">
+                      <p className="text-sm text-muted-foreground mb-2">Update Status</p>
+                      <Select 
+                        value={selectedLead.status} 
+                        onValueChange={(status) => updateLeadMutation.mutate({ id: selectedLead.id, data: { status } })}
                       >
-                        <SelectTrigger className="w-32" data-testid={`select-status-${lead.id}`}>
+                        <SelectTrigger data-testid="select-lead-status">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -163,73 +383,65 @@ export default function Leads() {
                           <SelectItem value="contacted">Contacted</SelectItem>
                           <SelectItem value="quoted">Quoted</SelectItem>
                           <SelectItem value="sold">Sold</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
+                          <SelectItem value="closed">Closed</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Badge className={`${statusColors[lead.status]} text-white`}>
-                        {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
-                      </Badge>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {lead.comments && (
-                    <div className="mb-4 p-3 bg-muted rounded-lg">
-                      <p className="text-sm font-medium mb-1">Customer Comments:</p>
-                      <p className="text-sm text-muted-foreground">{lead.comments}</p>
-                    </div>
-                  )}
-                  
-                  <Separator className="my-4" />
-                  
-                  <div className="mb-4">
-                    <h4 className="font-medium mb-2">Requested Items ({lead.cartItems?.length || 0})</h4>
-                    <div className="space-y-2">
-                      {lead.cartItems?.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded">
-                          <div>
-                            <span className="font-medium">{item.product.partNumber}</span>
-                            <span className="mx-2 text-muted-foreground">-</span>
-                            <span>{item.product.partName}</span>
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              {item.product.manufacturer}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span className="text-muted-foreground">Qty: {item.quantity}</span>
-                            {item.product.price && (
-                              <span className="font-medium">
-                                ${(parseFloat(item.product.price) * item.quantity).toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    {lead.cartTotal && (
-                      <div className="text-lg font-semibold">
-                        Total: ${parseFloat(lead.cartTotal).toFixed(2)}
-                      </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {!selectedLead.assignedTo && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleClaimLead(selectedLead)}
+                        disabled={updateLeadMutation.isPending}
+                        data-testid="button-claim-lead"
+                      >
+                        <User className="h-4 w-4 mr-2" />
+                        Claim Lead
+                      </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => handleDownloadAdf(lead.id)}
-                      data-testid={`button-download-adf-${lead.id}`}
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleDownloadAdf(selectedLead.id)}
+                      data-testid="button-download-adf"
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-4 w-4 mr-2" />
                       Download ADF
                     </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.href = `mailto:${selectedLead.email}`}
+                      data-testid="button-email-customer"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.href = `tel:${selectedLead.phone}`}
+                      data-testid="button-call-customer"
+                    >
+                      <Phone className="h-4 w-4 mr-2" />
+                      Call
+                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => deleteLeadMutation.mutate(selectedLead.id)}
+                        disabled={deleteLeadMutation.isPending}
+                        data-testid="button-delete-lead"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

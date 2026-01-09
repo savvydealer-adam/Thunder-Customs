@@ -1,0 +1,131 @@
+## Task: Build Customer Lead Submission System
+
+Thunder Customs needs a lead capture system so customers can submit their interest in accessories and request quotes. Currently, customers can only download/print their cart - there's no way to submit their info for follow-up.
+
+### What to Build
+
+**1. Database Schema (shared/schema.ts)**
+
+Add a new `leads` table:
+```typescript
+export const leads = pgTable("leads", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  // Customer info
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  // Optional fields
+  preferredContact: varchar("preferred_contact", { length: 20 }).default('phone'), // 'phone', 'email', 'text'
+  vehicleInfo: text("vehicle_info"), // Year/Make/Model they're shopping for
+  notes: text("notes"), // Customer comments
+  // Cart snapshot (JSON of products they're interested in)
+  cartSnapshot: jsonb("cart_snapshot").notNull(),
+  cartTotal: decimal("cart_total", { precision: 10, scale: 2 }),
+  itemCount: integer("item_count").notNull(),
+  // Status tracking
+  status: varchar("status", { length: 50 }).notNull().default('new'), // 'new', 'contacted', 'quoted', 'sold', 'closed'
+  assignedTo: varchar("assigned_to", { length: 255 }), // Employee who claimed the lead
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  contactedAt: timestamp("contacted_at"),
+});
+```
+
+Add the insert schema and types like other tables.
+
+**2. API Endpoints (server/routes.ts)**
+
+Add these routes:
+
+PUBLIC (no auth required):
+- `POST /api/leads` - Submit a new lead (customer-facing)
+  - Validates required fields (firstName, lastName, email, phone, cartSnapshot)
+  - Returns success message
+
+PROTECTED (require authentication):
+- `GET /api/admin/leads` - List all leads with filtering/pagination
+  - Filter by status, date range, assignedTo
+  - Sort by createdAt (newest first default)
+- `GET /api/admin/leads/:id` - Get single lead details
+- `PATCH /api/admin/leads/:id` - Update lead status, assignedTo, notes
+- `DELETE /api/admin/leads/:id` - Delete a lead (admin only)
+
+**3. Storage Methods (server/storage.ts)**
+
+Add to IStorage interface and DatabaseStorage class:
+- `createLead(data)` - Insert new lead
+- `getLeads(filters)` - Get leads with pagination
+- `getLead(id)` - Get single lead
+- `updateLead(id, data)` - Update lead
+- `deleteLead(id)` - Delete lead
+- `getLeadStats()` - Return counts by status for dashboard
+
+**4. Frontend: Lead Submission Form**
+
+Create `client/src/components/LeadSubmissionForm.tsx`:
+- Form fields: First Name, Last Name, Email, Phone, Preferred Contact (dropdown), Vehicle Info (optional), Notes (optional)
+- Uses react-hook-form with zod validation (match existing patterns)
+- Phone validation for US format
+- Email validation
+- Submit button with loading state
+- Success toast message on submission
+- Form clears cart after successful submission (optional - ask user preference)
+
+**5. Update Cart Page (client/src/pages/Cart.tsx)**
+
+Add the lead submission form to the Cart page summary card. Flow:
+1. Customer reviews their cart
+2. Fills out contact info form
+3. Clicks "Request Quote" or "Submit Interest"
+4. Their cart items are captured with their contact info
+5. Show success message: "Thanks! We'll contact you within 24 hours."
+
+Keep existing Download PDF and Print buttons as alternatives.
+
+**6. Admin Leads Management Page**
+
+Create `client/src/pages/LeadsManagement.tsx`:
+- Table showing all leads (name, email, phone, items, status, date, assigned to)
+- Click row to expand/view full cart snapshot
+- Status dropdown to update lead status
+- Filter by status tabs (All, New, Contacted, Quoted, Sold, Closed)
+- Search by name/email/phone
+- "Claim" button to assign lead to current employee
+- Match existing admin page styling (see Admin.tsx, EmployeeManagement.tsx)
+
+**7. Add Route**
+
+In `client/src/App.tsx` or routing config:
+- Add `/admin/leads` route pointing to LeadsManagement page
+- Protect with same auth as other admin routes
+
+**8. Navigation Update**
+
+Add "Leads" link to admin navigation (Header.tsx dropdown menu for authenticated users)
+
+### Technical Requirements
+
+- Use existing UI components from @/components/ui (shadcn)
+- Use TanStack Query for data fetching (match existing patterns)
+- Use Zod for validation (match existing patterns)
+- Use existing toast notifications for feedback
+- Follow existing TypeScript patterns
+- Run `npm run db:push` after schema changes
+
+### Styling Notes
+
+- Match Thunder Customs branding (Blue #1E90FF primary)
+- Use existing Card, Button, Input, Badge components
+- Mobile responsive like existing pages
+
+### Test the Implementation
+
+After building:
+1. Go to /products, add items to cart
+2. Go to /cart, fill out lead form, submit
+3. Verify lead appears in database
+4. Login as admin, go to /admin/leads
+5. Verify lead shows with correct data
+6. Test status updates work

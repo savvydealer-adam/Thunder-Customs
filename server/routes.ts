@@ -137,7 +137,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: z.string().min(1, "First name is required"),
         lastName: z.string().min(1, "Last name is required"),
         email: z.string().email("Valid email is required"),
-        phone: z.string().optional(),
+        phone: z.string().min(1, "Phone number is required"),
+        preferredContact: z.enum(['phone', 'email', 'text']).optional().default('phone'),
+        vehicleInfo: z.string().optional(),
         comments: z.string().optional(),
         cartItems: z.array(z.object({
           product: z.object({
@@ -171,10 +173,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        phone: data.phone || null,
+        phone: data.phone,
+        preferredContact: data.preferredContact,
+        vehicleInfo: data.vehicleInfo || null,
         comments: data.comments || null,
         cartItems: data.cartItems,
         cartTotal: data.cartTotal || null,
+        itemCount: data.cartItems.reduce((sum, item) => sum + item.quantity, 0),
         adfXml,
         status: 'new',
         submittedBy: userId,
@@ -183,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         success: true,
         leadId: lead.id,
-        message: "Your request has been submitted. We'll contact you soon!",
+        message: "Your request has been submitted. We'll contact you within 24 hours!",
       });
     } catch (error) {
       console.error("Error creating lead:", error);
@@ -194,11 +199,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get leads - authenticated staff can view leads
   app.get("/api/leads", isAuthenticated, async (req: any, res) => {
     try {
-      const leads = await storage.getLeads();
+      const { status, search } = req.query;
+      const leads = await storage.getLeads({
+        status: status as string,
+        search: search as string,
+      });
       res.json(leads);
     } catch (error) {
       console.error("Error fetching leads:", error);
       res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+
+  // Get lead stats - authenticated staff can view
+  app.get("/api/leads/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const stats = await storage.getLeadStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching lead stats:", error);
+      res.status(500).json({ error: "Failed to fetch lead stats" });
     }
   });
 
@@ -238,26 +258,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update lead status - admin only
-  app.patch("/api/leads/:id/status", isAuthenticated, requireAdmin, async (req: any, res) => {
+  // Update lead - authenticated staff can update
+  app.patch("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { status } = req.body;
+      const { status, assignedTo, comments } = req.body;
       
-      const validStatuses = ['new', 'contacted', 'quoted', 'sold', 'lost'];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({ error: "Invalid status" });
+      const updateData: any = {};
+      
+      if (status) {
+        const validStatuses = ['new', 'contacted', 'quoted', 'sold', 'closed'];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({ error: "Invalid status" });
+        }
+        updateData.status = status;
       }
       
-      const lead = await storage.updateLeadStatus(id, status);
+      if (assignedTo !== undefined) {
+        updateData.assignedTo = assignedTo;
+      }
+      
+      if (comments !== undefined) {
+        updateData.comments = comments;
+      }
+      
+      const lead = await storage.updateLead(id, updateData);
       if (!lead) {
         return res.status(404).json({ error: "Lead not found" });
       }
       
       res.json(lead);
     } catch (error) {
-      console.error("Error updating lead status:", error);
-      res.status(500).json({ error: "Failed to update lead status" });
+      console.error("Error updating lead:", error);
+      res.status(500).json({ error: "Failed to update lead" });
+    }
+  });
+
+  // Delete lead - admin only
+  app.delete("/api/leads/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteLead(id);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json({ success: true, message: "Lead deleted" });
+    } catch (error) {
+      console.error("Error deleting lead:", error);
+      res.status(500).json({ error: "Failed to delete lead" });
     }
   });
 

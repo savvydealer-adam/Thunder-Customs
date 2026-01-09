@@ -41,9 +41,11 @@ export interface IStorage {
   
   // Lead operations
   createLead(lead: InsertLead): Promise<Lead>;
-  getLeads(): Promise<Lead[]>;
+  getLeads(filters?: { status?: string; search?: string }): Promise<Lead[]>;
   getLead(id: number): Promise<Lead | undefined>;
-  updateLeadStatus(id: number, status: string): Promise<Lead | undefined>;
+  updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null }): Promise<Lead | undefined>;
+  deleteLead(id: number): Promise<boolean>;
+  getLeadStats(): Promise<{ status: string; count: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -281,7 +283,28 @@ export class DatabaseStorage implements IStorage {
     return newLead;
   }
 
-  async getLeads(): Promise<Lead[]> {
+  async getLeads(filters?: { status?: string; search?: string }): Promise<Lead[]> {
+    const conditions = [];
+    
+    if (filters?.status && filters.status !== 'all') {
+      conditions.push(eq(leads.status, filters.status));
+    }
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          ilike(leads.firstName, searchTerm),
+          ilike(leads.lastName, searchTerm),
+          ilike(leads.email, searchTerm),
+          ilike(leads.phone, searchTerm)
+        )
+      );
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(leads).where(and(...conditions)).orderBy(desc(leads.createdAt));
+    }
     return await db.select().from(leads).orderBy(desc(leads.createdAt));
   }
 
@@ -290,13 +313,50 @@ export class DatabaseStorage implements IStorage {
     return lead;
   }
 
-  async updateLeadStatus(id: number, status: string): Promise<Lead | undefined> {
+  async updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null }): Promise<Lead | undefined> {
+    const updateData: any = { updatedAt: new Date() };
+    
+    // Only allow specific fields to be updated (whitelist approach)
+    if (data.status !== undefined) {
+      updateData.status = data.status;
+    }
+    if (data.assignedTo !== undefined) {
+      updateData.assignedTo = data.assignedTo;
+    }
+    if (data.comments !== undefined) {
+      updateData.comments = data.comments;
+    }
+    
+    // If status is being changed to 'contacted' and contactedAt is not set, set it
+    if (data.status === 'contacted') {
+      const existingLead = await this.getLead(id);
+      if (existingLead && !existingLead.contactedAt) {
+        updateData.contactedAt = new Date();
+      }
+    }
+    
     const [lead] = await db
       .update(leads)
-      .set({ status, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(leads.id, id))
       .returning();
     return lead;
+  }
+
+  async deleteLead(id: number): Promise<boolean> {
+    const result = await db.delete(leads).where(eq(leads.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getLeadStats(): Promise<{ status: string; count: number }[]> {
+    const stats = await db
+      .select({
+        status: leads.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leads)
+      .groupBy(leads.status);
+    return stats;
   }
 }
 

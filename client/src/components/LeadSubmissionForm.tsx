@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, CheckCircle, Loader2 } from "lucide-react";
@@ -16,6 +17,8 @@ interface LeadFormData {
   lastName: string;
   email: string;
   phone: string;
+  preferredContact: 'phone' | 'email' | 'text';
+  vehicleInfo: string;
   comments: string;
 }
 
@@ -30,6 +33,8 @@ export function LeadSubmissionForm() {
     lastName: "",
     email: "",
     phone: "",
+    preferredContact: "phone",
+    vehicleInfo: "",
     comments: "",
   });
 
@@ -60,7 +65,7 @@ export function LeadSubmissionForm() {
       setSubmitted(true);
       toast({
         title: "Request Submitted",
-        description: "We'll contact you soon about your parts request!",
+        description: "We'll contact you within 24 hours about your parts request!",
       });
       clearCart();
     },
@@ -75,7 +80,7 @@ export function LeadSubmissionForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.firstName || !formData.lastName || !formData.email) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -99,14 +104,14 @@ export function LeadSubmissionForm() {
       <DialogTrigger asChild>
         <Button className="w-full gap-2" size="lg" data-testid="button-submit-request">
           <Send className="h-4 w-4" />
-          Submit Request to Dealership
+          Request Quote
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Submit Parts Request</DialogTitle>
+          <DialogTitle>Request a Quote</DialogTitle>
           <DialogDescription>
-            Fill out your contact information and we'll reach out to help with your order.
+            Fill out your contact information and we'll reach out within 24 hours.
           </DialogDescription>
         </DialogHeader>
         
@@ -115,7 +120,7 @@ export function LeadSubmissionForm() {
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Request Submitted!</h3>
             <p className="text-muted-foreground">
-              Thank you for your interest. A team member will contact you shortly.
+              Thank you for your interest. We'll contact you within 24 hours.
             </p>
             <Button 
               className="mt-4" 
@@ -162,19 +167,50 @@ export function LeadSubmissionForm() {
               />
             </div>
             
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone *</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  placeholder="(555) 123-4567"
+                  required
+                  data-testid="input-phone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="preferredContact">Preferred Contact</Label>
+                <Select 
+                  value={formData.preferredContact} 
+                  onValueChange={(value: 'phone' | 'email' | 'text') => handleInputChange("preferredContact", value)}
+                >
+                  <SelectTrigger id="preferredContact" data-testid="select-preferred-contact">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="phone">Phone Call</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="text">Text Message</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone (optional)</Label>
+              <Label htmlFor="vehicleInfo">Vehicle (optional)</Label>
               <Input
-                id="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                data-testid="input-phone"
+                id="vehicleInfo"
+                value={formData.vehicleInfo}
+                onChange={(e) => handleInputChange("vehicleInfo", e.target.value)}
+                placeholder="Year, Make, Model (e.g., 2024 Jeep Wrangler)"
+                data-testid="input-vehicle-info"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="comments">Comments (optional)</Label>
+              <Label htmlFor="comments">Notes (optional)</Label>
               <Textarea
                 id="comments"
                 value={formData.comments}
