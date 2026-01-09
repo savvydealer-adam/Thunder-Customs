@@ -1,18 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import jeepBackground from "@assets/stock_images/lifted_jeep_wrangler_ad1aff92.jpg";
 import thunderLogo from "@assets/Thunder Customs Logo TRANSPARENT_1763572622278.png";
 
 export function Hero() {
   return (
     <section className="relative w-full overflow-hidden min-h-[600px] md:min-h-[700px] flex items-center">
       <div 
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${jeepBackground})` }}
+        className="absolute inset-0"
+        style={{ 
+          background: `linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #1a1a2e 100%)`
+        }}
       />
       
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
 
       <div className="container relative z-10 mx-auto px-4 py-20 md:py-28">
         <div className="flex flex-col items-center text-center gap-8 max-w-5xl mx-auto">
