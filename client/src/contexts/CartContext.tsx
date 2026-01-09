@@ -23,7 +23,6 @@ const CART_STORAGE_KEY = "thunder_customs_cart";
 interface StoredCartItem {
   productId: number;
   quantity: number;
-  product: Product;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -31,20 +30,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Load cart from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem(CART_STORAGE_KEY);
-    if (stored) {
+    const loadCart = async () => {
+      const stored = localStorage.getItem(CART_STORAGE_KEY);
+      if (!stored) return;
+      
       try {
         const parsed: StoredCartItem[] = JSON.parse(stored);
-        const cartItems: CartItemWithProduct[] = parsed.map(item => ({
-          product: item.product,
-          quantity: item.quantity,
-        }));
+        if (parsed.length === 0) return;
+        
+        // Fetch fresh product data for each item
+        const productIds = parsed.map(item => item.productId);
+        const freshProducts = await Promise.all(
+          productIds.map(async (id) => {
+            const res = await fetch(`/api/products/${id}`);
+            if (!res.ok) return null;
+            return res.json();
+          })
+        );
+        
+        // Build cart with fresh data, filtering out any products that no longer exist
+        const cartItems: CartItemWithProduct[] = parsed
+          .map((item, index) => {
+            const product = freshProducts[index];
+            if (!product) return null;
+            return { product, quantity: item.quantity };
+          })
+          .filter((item): item is CartItemWithProduct => item !== null);
+        
         setItems(cartItems);
       } catch (error) {
-        console.error("Failed to parse cart from localStorage:", error);
+        console.error("Failed to load cart:", error);
         localStorage.removeItem(CART_STORAGE_KEY);
       }
-    }
+    };
+    
+    loadCart();
   }, []);
 
   // Save cart to localStorage whenever it changes
@@ -52,7 +72,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const toStore: StoredCartItem[] = items.map(item => ({
       productId: item.product.id,
       quantity: item.quantity,
-      product: item.product,
     }));
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(toStore));
   }, [items]);

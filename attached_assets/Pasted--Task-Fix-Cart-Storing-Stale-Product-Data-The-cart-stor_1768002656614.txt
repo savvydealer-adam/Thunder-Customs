@@ -1,0 +1,101 @@
+## Task: Fix Cart Storing Stale Product Data
+
+The cart stores full product objects in localStorage. When admins update products, existing carts show outdated info.
+
+### File: client/src/contexts/CartContext.tsx
+
+**Solution: Only store product IDs, fetch fresh data on load**
+
+**Step 1: Change StoredCartItem interface (line 23-27)**
+
+Change:
+```tsx
+interface StoredCartItem {
+  productId: number;
+  quantity: number;
+  product: Product;
+}
+```
+
+To:
+```tsx
+interface StoredCartItem {
+  productId: number;
+  quantity: number;
+}
+```
+
+**Step 2: Update save to localStorage (lines 51-58)**
+
+Change:
+```tsx
+useEffect(() => {
+  const toStore: StoredCartItem[] = items.map(item => ({
+    productId: item.product.id,
+    quantity: item.quantity,
+    product: item.product,
+  }));
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(toStore));
+}, [items]);
+```
+
+To:
+```tsx
+useEffect(() => {
+  const toStore: StoredCartItem[] = items.map(item => ({
+    productId: item.product.id,
+    quantity: item.quantity,
+  }));
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(toStore));
+}, [items]);
+```
+
+**Step 3: Update load from localStorage to fetch fresh product data (lines 32-48)**
+
+This is more complex - we need to fetch products from the API:
+```tsx
+// Load cart from localStorage on mount
+useEffect(() => {
+  const loadCart = async () => {
+    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    if (!stored) return;
+    
+    try {
+      const parsed: StoredCartItem[] = JSON.parse(stored);
+      if (parsed.length === 0) return;
+      
+      // Fetch fresh product data for each item
+      const productIds = parsed.map(item => item.productId);
+      const freshProducts = await Promise.all(
+        productIds.map(async (id) => {
+          const res = await fetch(`/api/products/${id}`);
+          if (!res.ok) return null;
+          return res.json();
+        })
+      );
+      
+      // Build cart with fresh data, filtering out any products that no longer exist
+      const cartItems: CartItemWithProduct[] = parsed
+        .map((item, index) => {
+          const product = freshProducts[index];
+          if (!product) return null;
+          return { product, quantity: item.quantity };
+        })
+        .filter((item): item is CartItemWithProduct => item !== null);
+      
+      setItems(cartItems);
+    } catch (error) {
+      console.error("Failed to load cart:", error);
+      localStorage.removeItem(CART_STORAGE_KEY);
+    }
+  };
+  
+  loadCart();
+}, []);
+```
+
+### Test
+1. Add product to cart
+2. As admin, change the product name
+3. Refresh page
+4. Cart should show updated product name
