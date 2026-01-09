@@ -43,10 +43,10 @@ export default function Products() {
     params.set('page', currentPage.toString());
     params.set('pageSize', pageSize.toString());
     
-    if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
-    if (selectedManufacturers.length === 1) params.set('manufacturer', selectedManufacturers[0]);
-    if (selectedVehicleMakes.length === 1) params.set('vehicleMake', selectedVehicleMakes[0]);
-    if (selectedVehicleModels.length === 1) params.set('vehicleModel', selectedVehicleModels[0]);
+    if (selectedCategories.length > 0) params.set('category', selectedCategories.join(','));
+    if (selectedManufacturers.length > 0) params.set('manufacturer', selectedManufacturers.join(','));
+    if (selectedVehicleMakes.length > 0) params.set('vehicleMake', selectedVehicleMakes.join(','));
+    if (selectedVehicleModels.length > 0) params.set('vehicleModel', selectedVehicleModels.join(','));
     if (searchQuery) params.set('search', searchQuery);
     
     return `/api/products?${params.toString()}`;

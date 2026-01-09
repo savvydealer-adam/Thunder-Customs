@@ -1,0 +1,74 @@
+## Task: Fix Multi-Select Filters - Only First Selection Works
+
+When users select multiple categories/manufacturers/vehicle makes, only exactly 1 selection works. Selecting 2+ filters causes NO filtering.
+
+### File: client/src/pages/Products.tsx
+
+**Problem Location (lines 46-49):**
+```tsx
+if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
+if (selectedManufacturers.length === 1) params.set('manufacturer', selectedManufacturers[0]);
+if (selectedVehicleMakes.length === 1) params.set('vehicleMake', selectedVehicleMakes[0]);
+if (selectedVehicleModels.length === 1) params.set('vehicleModel', selectedVehicleModels[0]);
+```
+
+**Option A: Quick Fix - Use first selection when any are selected**
+
+Change to:
+```tsx
+if (selectedCategories.length > 0) params.set('category', selectedCategories[0]);
+if (selectedManufacturers.length > 0) params.set('manufacturer', selectedManufacturers[0]);
+if (selectedVehicleMakes.length > 0) params.set('vehicleMake', selectedVehicleMakes[0]);
+if (selectedVehicleModels.length > 0) params.set('vehicleModel', selectedVehicleModels[0]);
+```
+
+This uses the first selection but at least filters work.
+
+**Option B: Better Fix - Support multiple selections**
+
+Change the buildFilteredUrl function to:
+```tsx
+const buildFilteredUrl = () => {
+  const params = new URLSearchParams();
+  params.set('page', currentPage.toString());
+  params.set('pageSize', pageSize.toString());
+  
+  // Support multiple selections by joining with comma
+  if (selectedCategories.length > 0) params.set('category', selectedCategories.join(','));
+  if (selectedManufacturers.length > 0) params.set('manufacturer', selectedManufacturers.join(','));
+  if (selectedVehicleMakes.length > 0) params.set('vehicleMake', selectedVehicleMakes.join(','));
+  if (selectedVehicleModels.length > 0) params.set('vehicleModel', selectedVehicleModels.join(','));
+  if (searchQuery) params.set('search', searchQuery);
+  
+  return `/api/products?${params.toString()}`;
+};
+```
+
+Then update server/storage.ts getProducts method to handle comma-separated values:
+
+In the conditions section, change:
+```tsx
+if (filters?.category) {
+  conditions.push(eq(products.category, filters.category));
+}
+```
+
+To:
+```tsx
+if (filters?.category) {
+  const categories = filters.category.split(',');
+  if (categories.length === 1) {
+    conditions.push(eq(products.category, categories[0]));
+  } else {
+    conditions.push(inArray(products.category, categories));
+  }
+}
+```
+
+Apply the same pattern for manufacturer, vehicleMake, vehicleModel.
+
+### Test
+1. Go to /products
+2. Select 2 categories in the filter
+3. Verify products from BOTH categories appear (Option B) or first category (Option A)
+4. Results should not be empty

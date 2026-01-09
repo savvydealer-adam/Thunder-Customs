@@ -60,16 +60,36 @@ export class DatabaseStorage implements IStorage {
     conditions.push(or(eq(products.isHidden, false), isNull(products.isHidden)));
     
     if (filters?.category) {
-      conditions.push(eq(products.category, filters.category));
+      const categories = filters.category.split(',');
+      if (categories.length === 1) {
+        conditions.push(eq(products.category, categories[0]));
+      } else {
+        conditions.push(inArray(products.category, categories));
+      }
     }
     if (filters?.manufacturer) {
-      conditions.push(eq(products.manufacturer, filters.manufacturer));
+      const manufacturers = filters.manufacturer.split(',');
+      if (manufacturers.length === 1) {
+        conditions.push(eq(products.manufacturer, manufacturers[0]));
+      } else {
+        conditions.push(inArray(products.manufacturer, manufacturers));
+      }
     }
     if (filters?.vehicleMake) {
-      conditions.push(eq(products.vehicleMake, filters.vehicleMake));
+      const vehicleMakes = filters.vehicleMake.split(',');
+      if (vehicleMakes.length === 1) {
+        conditions.push(eq(products.vehicleMake, vehicleMakes[0]));
+      } else {
+        conditions.push(inArray(products.vehicleMake, vehicleMakes));
+      }
     }
     if (filters?.vehicleModel) {
-      conditions.push(eq(products.vehicleModel, filters.vehicleModel));
+      const vehicleModels = filters.vehicleModel.split(',');
+      if (vehicleModels.length === 1) {
+        conditions.push(eq(products.vehicleModel, vehicleModels[0]));
+      } else {
+        conditions.push(inArray(products.vehicleModel, vehicleModels));
+      }
     }
     if (filters?.search) {
       const searchTerm = `%${filters.search}%`;
