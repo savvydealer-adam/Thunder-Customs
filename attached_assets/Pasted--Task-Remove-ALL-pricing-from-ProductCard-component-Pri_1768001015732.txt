@@ -1,0 +1,65 @@
+## Task: Remove ALL pricing from ProductCard component
+
+Prices are still appearing on product cards. Remove them completely.
+
+### File: client/src/components/ProductCard.tsx
+
+**Step 1: Delete these lines near the top of the component (around lines 16-25):**
+```tsx
+// Role-based pricing display
+// Customers (not logged in): See Part Retail and Total Retail
+// Logged-in users: See all pricing details
+const partRetail = product.partRetail ? parseFloat(product.partRetail) : null;
+const totalRetail = product.totalRetail ? parseFloat(product.totalRetail) : null;
+const partMSRP = product.partMSRP ? parseFloat(product.partMSRP) : null;
+
+// Fallback to legacy price field if new fields aren't populated
+const displayPrice = partRetail || (product.price ? parseFloat(product.price) : null);
+const displayTotal = totalRetail;
+```
+
+**Step 2: In the CardFooter section, delete the entire pricing div (around lines 92-106):**
+
+FIND AND DELETE:
+```tsx
+{displayPrice !== null && (
+  <div>
+    <div className="text-xs text-muted-foreground">
+      Part Retail
+    </div>
+    <div className="font-bold text-lg text-primary" data-testid={`text-price-${product.id}`}>
+      ${displayPrice.toFixed(2)}
+    </div>
+    {displayTotal !== null && displayTotal !== displayPrice && (
+      <div className="text-xs text-muted-foreground mt-1">
+        Total: <span className="font-semibold text-foreground" data-testid={`text-total-retail-${product.id}`}>${displayTotal.toFixed(2)}</span>
+      </div>
+    )}
+  </div>
+)}
+```
+
+**Step 3: The CardFooter should now only contain the Add button:**
+```tsx
+<CardFooter className="flex-none pt-0 flex items-center justify-end">
+  <Button size="sm" className="gap-2" data-testid={`button-add-to-cart-${product.id}`}>
+    <ShoppingCart className="h-4 w-4" />
+    Add
+  </Button>
+</CardFooter>
+```
+
+Note: Changed `justify-between` to `justify-end` since there's no price on the left anymore.
+
+**Step 4: Remove unused import if present:**
+If `useAuth` is only used for pricing logic, you can remove:
+```tsx
+import { useAuth } from "@/hooks/useAuth";
+```
+And:
+```tsx
+const { isAuthenticated } = useAuth();
+```
+
+### Verify
+After changes, browse /products - NO prices should appear on any product card.
