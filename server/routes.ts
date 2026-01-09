@@ -7,6 +7,7 @@ import multer from "multer";
 import { InsertProduct } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin } from "./replitAuth";
 import { parsePDFCatalog } from "./pdfParser";
+import { generateAdfXml } from "./adfGenerator";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -129,8 +130,234 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lead submission - public endpoint (anyone can submit a lead request)
+  app.post("/api/leads", async (req: any, res) => {
+    try {
+      const leadSchema = z.object({
+        firstName: z.string().min(1, "First name is required"),
+        lastName: z.string().min(1, "Last name is required"),
+        email: z.string().email("Valid email is required"),
+        phone: z.string().optional(),
+        comments: z.string().optional(),
+        cartItems: z.array(z.object({
+          product: z.object({
+            id: z.number(),
+            partNumber: z.string(),
+            partName: z.string(),
+            manufacturer: z.string(),
+            category: z.string(),
+            price: z.string().nullable().optional(),
+          }),
+          quantity: z.number().min(1),
+        })).min(1, "Cart must have at least one item"),
+        cartTotal: z.string().optional(),
+      });
+
+      const validationResult = leadSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: validationResult.error.errors,
+        });
+      }
+
+      const data = validationResult.data;
+      
+      const adfXml = generateAdfXml(data);
+      
+      const userId = req.isAuthenticated?.() ? req.user?.claims?.sub : null;
+      
+      const lead = await storage.createLead({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone || null,
+        comments: data.comments || null,
+        cartItems: data.cartItems,
+        cartTotal: data.cartTotal || null,
+        adfXml,
+        status: 'new',
+        submittedBy: userId,
+      });
+
+      res.json({
+        success: true,
+        leadId: lead.id,
+        message: "Your request has been submitted. We'll contact you soon!",
+      });
+    } catch (error) {
+      console.error("Error creating lead:", error);
+      res.status(500).json({ error: "Failed to submit lead request" });
+    }
+  });
+
+  // Get leads - authenticated staff can view leads
+  app.get("/api/leads", isAuthenticated, async (req: any, res) => {
+    try {
+      const leads = await storage.getLeads();
+      res.json(leads);
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+      res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+
+  // Get single lead with ADF download
+  app.get("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const lead = await storage.getLead(id);
+      
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json(lead);
+    } catch (error) {
+      console.error("Error fetching lead:", error);
+      res.status(500).json({ error: "Failed to fetch lead" });
+    }
+  });
+
+  // Download ADF XML for a lead
+  app.get("/api/leads/:id/adf", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const lead = await storage.getLead(id);
+      
+      if (!lead || !lead.adfXml) {
+        return res.status(404).json({ error: "Lead or ADF not found" });
+      }
+      
+      res.setHeader('Content-Type', 'application/xml');
+      res.setHeader('Content-Disposition', `attachment; filename="lead-${id}.adf"`);
+      res.send(lead.adfXml);
+    } catch (error) {
+      console.error("Error downloading ADF:", error);
+      res.status(500).json({ error: "Failed to download ADF" });
+    }
+  });
+
+  // Update lead status - admin only
+  app.patch("/api/leads/:id/status", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      const validStatuses = ['new', 'contacted', 'quoted', 'sold', 'lost'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      
+      const lead = await storage.updateLeadStatus(id, status);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json(lead);
+    } catch (error) {
+      console.error("Error updating lead status:", error);
+      res.status(500).json({ error: "Failed to update lead status" });
+    }
+  });
+
   // Protected admin routes - require authentication and admin role
   
+  // Database export - download products as JSON
+  app.get("/api/admin/database/export", isAuthenticated, requireStrictAdmin, async (req: any, res) => {
+    try {
+      const { db } = await import("./db");
+      const { products, leads } = await import("@shared/schema");
+      
+      const [allProducts, allLeads] = await Promise.all([
+        db.select().from(products),
+        db.select().from(leads),
+      ]);
+      
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        products: allProducts,
+        leads: allLeads,
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="thunder-customs-backup-${Date.now()}.json"`);
+      res.send(JSON.stringify(exportData, null, 2));
+    } catch (error) {
+      console.error("Error exporting database:", error);
+      res.status(500).json({ error: "Failed to export database" });
+    }
+  });
+
+  // Database import - restore products from JSON
+  app.post("/api/admin/database/import", isAuthenticated, requireStrictAdmin, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const { db } = await import("./db");
+      const { products, leads } = await import("@shared/schema");
+      const { sql } = await import("drizzle-orm");
+      
+      const fileContent = req.file.buffer.toString('utf-8');
+      const importData = JSON.parse(fileContent);
+      
+      if (!importData.products || !Array.isArray(importData.products)) {
+        return res.status(400).json({ error: "Invalid backup file format" });
+      }
+      
+      // Clear existing products and insert from backup
+      await db.execute(sql`TRUNCATE TABLE products RESTART IDENTITY CASCADE`);
+      
+      let importedProducts = 0;
+      const batchSize = 100;
+      
+      for (let i = 0; i < importData.products.length; i += batchSize) {
+        const batch = importData.products.slice(i, i + batchSize);
+        // Remove id field so new ids are generated
+        const productsToInsert = batch.map((p: any) => {
+          const { id, ...productData } = p;
+          return productData;
+        });
+        
+        if (productsToInsert.length > 0) {
+          await db.insert(products).values(productsToInsert);
+          importedProducts += productsToInsert.length;
+        }
+      }
+      
+      // Import leads if present
+      let importedLeads = 0;
+      if (importData.leads && Array.isArray(importData.leads)) {
+        await db.execute(sql`TRUNCATE TABLE leads RESTART IDENTITY CASCADE`);
+        
+        for (let i = 0; i < importData.leads.length; i += batchSize) {
+          const batch = importData.leads.slice(i, i + batchSize);
+          const leadsToInsert = batch.map((l: any) => {
+            const { id, ...leadData } = l;
+            return leadData;
+          });
+          
+          if (leadsToInsert.length > 0) {
+            await db.insert(leads).values(leadsToInsert);
+            importedLeads += leadsToInsert.length;
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Imported ${importedProducts} products and ${importedLeads} leads`,
+        importedProducts,
+        importedLeads,
+      });
+    } catch (error) {
+      console.error("Error importing database:", error);
+      res.status(500).json({ error: "Failed to import database. Ensure the file is a valid backup." });
+    }
+  });
+
   // Update individual product (MSRP, cost, description)
   app.patch("/api/admin/products/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {

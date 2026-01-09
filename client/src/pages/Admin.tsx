@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon, Download, Database } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -481,6 +481,47 @@ export default function Admin() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Database Backup
+                </CardTitle>
+                <CardDescription>
+                  Export or import database for syncing between development environments
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Button
+                    className="w-full gap-2"
+                    variant="outline"
+                    onClick={() => {
+                      window.location.href = '/api/admin/database/export';
+                    }}
+                    data-testid="button-export-database"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export Database (JSON)
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Downloads all products and leads as a JSON backup file
+                  </p>
+                </div>
+                
+                <div className="relative my-3">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+                
+                <DatabaseImportForm />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>System Information</CardTitle>
                 <CardDescription>
                   Current database and catalog status
@@ -500,6 +541,82 @@ export default function Admin() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function DatabaseImportForm() {
+  const [file, setFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  const importMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      return await apiRequest('POST', '/api/admin/database/import', formData) as {
+        success: boolean;
+        message: string;
+        importedProducts: number;
+        importedLeads: number;
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+      toast({
+        title: "Import Successful",
+        description: data.message,
+      });
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = '';
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import database backup.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleImport = () => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    importMutation.mutate(formData);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Label>Import Backup File</Label>
+      <Input
+        ref={inputRef}
+        type="file"
+        accept=".json"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        data-testid="input-import-file"
+      />
+      <Button
+        className="w-full gap-2"
+        onClick={handleImport}
+        disabled={!file || importMutation.isPending}
+        data-testid="button-import-database"
+      >
+        {importMutation.isPending ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
+            Importing...
+          </>
+        ) : (
+          <>
+            <Upload className="h-4 w-4" />
+            Import Database Backup
+          </>
+        )}
+      </Button>
+      <p className="text-xs text-destructive">
+        Warning: This will replace all existing products and leads!
+      </p>
     </div>
   );
 }

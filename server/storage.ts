@@ -1,7 +1,7 @@
 // Reference: blueprint:javascript_log_in_with_replit
-import { products, categories, manufacturers, vehicleMakes, users, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake, type User, type UpsertUser } from "@shared/schema";
+import { products, categories, manufacturers, vehicleMakes, users, leads, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake, type User, type UpsertUser, type Lead, type InsertLead } from "@shared/schema";
 import { db } from "./db";
-import { eq, ilike, and, or, inArray, sql, isNull } from "drizzle-orm";
+import { eq, ilike, and, or, inArray, sql, isNull, desc } from "drizzle-orm";
 
 export interface PaginatedProducts {
   products: Product[];
@@ -38,6 +38,12 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<void>;
+  
+  // Lead operations
+  createLead(lead: InsertLead): Promise<Lead>;
+  getLeads(): Promise<Lead[]>;
+  getLead(id: number): Promise<Lead | undefined>;
+  updateLeadStatus(id: number, status: string): Promise<Lead | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -267,6 +273,30 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ role, updatedAt: new Date() })
       .where(eq(users.id, id));
+  }
+
+  // Lead operations
+  async createLead(lead: InsertLead): Promise<Lead> {
+    const [newLead] = await db.insert(leads).values(lead).returning();
+    return newLead;
+  }
+
+  async getLeads(): Promise<Lead[]> {
+    return await db.select().from(leads).orderBy(desc(leads.createdAt));
+  }
+
+  async getLead(id: number): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead;
+  }
+
+  async updateLeadStatus(id: number, status: string): Promise<Lead | undefined> {
+    const [lead] = await db
+      .update(leads)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(leads.id, id))
+      .returning();
+    return lead;
   }
 }
 

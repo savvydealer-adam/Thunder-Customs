@@ -1,4 +1,4 @@
-import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield } from "lucide-react";
+import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield, ClipboardList } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,15 @@ export function Header() {
                 Shop Parts
               </Button>
             </Link>
+            
+            {isAuthenticated && (
+              <Link href="/leads" className="hidden sm:block">
+                <Button variant="ghost" data-testid="button-leads">
+                  <ClipboardList className="w-4 h-4 mr-2" />
+                  Leads
+                </Button>
+              </Link>
+            )}
             
             {isAdmin && (
               <Link href="/admin" className="hidden sm:block">

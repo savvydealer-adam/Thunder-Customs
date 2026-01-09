@@ -12,6 +12,7 @@ import ProductEdit from "@/pages/ProductEdit";
 import Cart from "@/pages/Cart";
 import Admin from "@/pages/Admin";
 import EmployeeManagement from "@/pages/EmployeeManagement";
+import Leads from "@/pages/Leads";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/cart" component={Cart} />
       <Route path="/admin" component={Admin} />
       <Route path="/employees" component={EmployeeManagement} />
+      <Route path="/leads" component={Leads} />
       <Route component={NotFound} />
     </Switch>
   );

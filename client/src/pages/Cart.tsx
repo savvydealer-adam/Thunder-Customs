@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, ArrowLeft, Trash2, Plus, Minus, Download, Printer } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { generateShoppingListPDF } from "@/lib/pdfGenerator";
+import { LeadSubmissionForm } from "@/components/LeadSubmissionForm";
 
 export default function Cart() {
   const { items, updateQuantity, removeFromCart, clearCart, getTotalItems } = useCart();
@@ -207,10 +208,14 @@ export default function Cart() {
 
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Download or print your shopping list to bring to Thunder Customs dealership
+                      Submit your request to the dealership or download your shopping list
                     </p>
                     
-                    <Button className="w-full gap-2" size="lg" onClick={handleDownloadPDF} data-testid="button-download-pdf">
+                    <LeadSubmissionForm />
+                    
+                    <Separator />
+                    
+                    <Button variant="outline" className="w-full gap-2" onClick={handleDownloadPDF} data-testid="button-download-pdf">
                       <Download className="h-4 w-4" />
                       Download PDF
                     </Button>

@@ -106,6 +106,23 @@ export const cartItems = pgTable("cart_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Leads table for ADF lead submissions
+export const leads = pgTable("leads", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  comments: text("comments"),
+  cartItems: jsonb("cart_items").notNull(), // Store cart snapshot
+  cartTotal: decimal("cart_total", { precision: 10, scale: 2 }),
+  adfXml: text("adf_xml"), // Store generated ADF XML
+  status: varchar("status", { length: 50 }).notNull().default('new'), // new, contacted, quoted, sold, lost
+  submittedBy: varchar("submitted_by"), // User ID if logged in
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
@@ -135,6 +152,12 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({
   updatedAt: true,
 });
 
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
@@ -147,3 +170,5 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
 export type CartItem = typeof cartItems.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+export type Lead = typeof leads.$inferSelect;

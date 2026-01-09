@@ -96,3 +96,23 @@ To increase real image coverage, options include:
 2. Obtain manufacturer image packs from distributor portal
 3. Photograph products manually as inventory is received
 4. Use category-specific placeholder images for service packages
+
+## Lead Management System (January 2025)
+
+### ADF Lead Submission
+- Customers can submit shopping cart as a lead request from the Cart page
+- Generates industry-standard ADF (Auto-lead Data Format) XML for dealership CRM integration
+- Captures customer contact info, cart items, and comments
+- Leads stored in `leads` table with full cart snapshot
+
+### Lead Management (Staff Access)
+- All authenticated users (Staff, Manager, Admin) can view leads at `/leads`
+- Lead status tracking: new → contacted → quoted → sold/lost
+- Download ADF XML for each lead to import into dealership systems
+- Admins can update lead status
+
+### Database Backup/Restore (Admin Only)
+- Export: Download all products and leads as JSON backup file
+- Import: Restore database from backup file (replaces all data)
+- Located in Admin panel under "Database Backup" section
+- Use for syncing development environments or disaster recovery
