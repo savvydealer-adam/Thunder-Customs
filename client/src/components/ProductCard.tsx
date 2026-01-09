@@ -4,12 +4,27 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart } from "lucide-react";
 import { Link } from "wouter";
 import type { Product } from "@shared/schema";
+import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const { addToCart } = useCart();
+  const { toast } = useToast();
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product, 1);
+    toast({
+      title: "Added to list",
+      description: `${product.partName} has been added to your quote list.`,
+    });
+  };
+
   return (
     <Card className="hover-elevate active-elevate-2 overflow-hidden group h-full flex flex-col" data-testid={`card-product-${product.id}`}>
       <Link href={`/products/${product.id}`}>
@@ -75,7 +90,12 @@ export function ProductCard({ product }: ProductCardProps) {
       </CardContent>
 
       <CardFooter className="flex-none pt-0 flex items-center justify-end">
-        <Button size="sm" className="gap-2" data-testid={`button-add-to-cart-${product.id}`}>
+        <Button 
+          size="sm" 
+          className="gap-2" 
+          onClick={handleAddToCart}
+          data-testid={`button-add-to-cart-${product.id}`}
+        >
           <ShoppingCart className="h-4 w-4" />
           Add
         </Button>
