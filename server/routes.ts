@@ -8,6 +8,7 @@ import { InsertProduct } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin } from "./replitAuth";
 import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
+import { sendLeadNotification } from "./emailService";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -169,6 +170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const userId = req.isAuthenticated?.() ? req.user?.claims?.sub : null;
       
+      const itemCount = data.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+      
       const lead = await storage.createLead({
         firstName: data.firstName,
         lastName: data.lastName,
@@ -179,11 +182,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         comments: data.comments || null,
         cartItems: data.cartItems,
         cartTotal: data.cartTotal || null,
-        itemCount: data.cartItems.reduce((sum, item) => sum + item.quantity, 0),
+        itemCount,
         adfXml,
         status: 'new',
         submittedBy: userId,
       });
+
+      // Send email notification (don't block response on email)
+      sendLeadNotification({
+        leadId: lead.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        preferredContact: data.preferredContact,
+        vehicleInfo: data.vehicleInfo,
+        comments: data.comments,
+        itemCount,
+        cartItems: data.cartItems,
+      }).catch(err => console.error('Email notification failed:', err));
 
       res.json({
         success: true,
