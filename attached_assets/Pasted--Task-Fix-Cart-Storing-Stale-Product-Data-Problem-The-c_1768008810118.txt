@@ -1,0 +1,195 @@
+## Task: Fix Cart Storing Stale Product Data
+
+**Problem:** The cart stores full product objects in localStorage. When admins update products (name, image, category, etc.), customers with items already in their cart see outdated information until they clear their cart.
+
+**Solution:** Store only product IDs and quantities in localStorage, then fetch fresh product data when the cart loads.
+
+---
+
+### File: client/src/contexts/CartContext.tsx
+
+**Step 1: Simplify the StoredCartItem interface**
+
+Find this interface (around line 12-16):
+```tsx
+interface StoredCartItem {
+  productId: number;
+  quantity: number;
+  product: Product;
+}
+```
+
+Change it to:
+```tsx
+interface StoredCartItem {
+  productId: number;
+  quantity: number;
+}
+```
+
+**Step 2: Add loading state**
+
+After the existing state declarations, add:
+```tsx
+const [isLoading, setIsLoading] = useState(true);
+```
+
+**Step 3: Update the save to localStorage effect**
+
+Find the useEffect that saves to localStorage (look for `localStorage.setItem`). Change it to only store IDs and quantities:
+```tsx
+useEffect(() => {
+  const toStore: StoredCartItem[] = items.map(item => ({
+    productId: item.product.id,
+    quantity: item.quantity,
+  }));
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(toStore));
+}, [items]);
+```
+
+**Step 4: Replace the load from localStorage effect**
+
+Find the useEffect that loads from localStorage on mount. Replace it entirely with:
+```tsx
+useEffect(() => {
+  const loadCart = async () => {
+    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    if (!stored) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      const parsed: StoredCartItem[] = JSON.parse(stored);
+      if (parsed.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fetch fresh product data for each stored item
+      const freshItems = await Promise.all(
+        parsed.map(async (storedItem) => {
+          try {
+            const res = await fetch(`/api/products/${storedItem.productId}`);
+            if (!res.ok) return null;
+            const product = await res.json();
+            return { product, quantity: storedItem.quantity };
+          } catch {
+            return null;
+          }
+        })
+      );
+      
+      // Filter out any products that no longer exist or failed to load
+      const validItems = freshItems.filter((item): item is CartItemWithProduct => item !== null);
+      
+      // Update localStorage if some items were removed (products deleted)
+      if (validItems.length !== parsed.length) {
+        const updatedStorage: StoredCartItem[] = validItems.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        }));
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedStorage));
+      }
+      
+      setItems(validItems);
+    } catch (error) {
+      console.error("Failed to load cart:", error);
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  loadCart();
+}, []);
+```
+
+**Step 5: Export isLoading in the context value**
+
+Find the return statement with the context provider value. Add `isLoading` to it:
+```tsx
+return (
+  <CartContext.Provider value={{ 
+    items, 
+    addToCart, 
+    removeFromCart, 
+    updateQuantity, 
+    clearCart, 
+    getTotalItems,
+    isLoading 
+  }}>
+    {children}
+  </CartContext.Provider>
+);
+```
+
+**Step 6: Update the CartContextType interface**
+
+Add `isLoading` to the interface:
+```tsx
+interface CartContextType {
+  items: CartItemWithProduct[];
+  addToCart: (product: Product, quantity?: number) => void;
+  removeFromCart: (productId: number) => void;
+  updateQuantity: (productId: number, quantity: number) => void;
+  clearCart: () => void;
+  getTotalItems: () => number;
+  isLoading: boolean;
+}
+```
+
+**Step 7: Update the default context value**
+
+Find where the context is created with a default value and add `isLoading: false`:
+```tsx
+const CartContext = createContext<CartContextType>({
+  items: [],
+  addToCart: () => {},
+  removeFromCart: () => {},
+  updateQuantity: () => {},
+  clearCart: () => {},
+  getTotalItems: () => 0,
+  isLoading: false,
+});
+```
+
+---
+
+### File: client/src/pages/Cart.tsx (Optional Enhancement)
+
+Add a loading state to the cart page for better UX:
+
+After getting items from useCart, also get isLoading:
+```tsx
+const { items, updateQuantity, removeFromCart, clearCart, getTotalItems, isLoading } = useCart();
+```
+
+Add a loading check before the empty cart check:
+```tsx
+if (isLoading) {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading your list...</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+### Test
+
+1. Add products to cart
+2. As admin, edit one of those products (change the name)
+3. Refresh the customer page
+4. Cart should show the UPDATED product name
+5. Delete a product as admin
+6. Refresh customer page - deleted product should be removed from cart automatically

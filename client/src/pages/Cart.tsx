@@ -10,7 +10,7 @@ import { generateShoppingListPDF } from "@/lib/pdfGenerator";
 import { LeadSubmissionForm } from "@/components/LeadSubmissionForm";
 
 export default function Cart() {
-  const { items, updateQuantity, removeFromCart, clearCart, getTotalItems } = useCart();
+  const { items, updateQuantity, removeFromCart, clearCart, getTotalItems, isLoading } = useCart();
 
   const handleDownloadPDF = () => {
     generateShoppingListPDF(items);
@@ -25,6 +25,21 @@ export default function Cart() {
       updateQuantity(productId, newQuantity);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1">
+          <div className="container mx-auto px-4 py-16">
+            <div className="max-w-2xl mx-auto text-center">
+              <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading your list...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

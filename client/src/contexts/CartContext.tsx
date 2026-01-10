@@ -14,6 +14,7 @@ interface CartContextType {
   clearCart: () => void;
   getCartCount: () => number;
   getTotalItems: () => number;
+  isLoading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -27,16 +28,23 @@ interface StoredCartItem {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItemWithProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load cart from localStorage on mount
   useEffect(() => {
     const loadCart = async () => {
       const stored = localStorage.getItem(CART_STORAGE_KEY);
-      if (!stored) return;
+      if (!stored) {
+        setIsLoading(false);
+        return;
+      }
       
       try {
         const parsed: StoredCartItem[] = JSON.parse(stored);
-        if (parsed.length === 0) return;
+        if (parsed.length === 0) {
+          setIsLoading(false);
+          return;
+        }
         
         // Fetch fresh product data for each item
         const productIds = parsed.map(item => item.productId);
@@ -61,6 +69,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("Failed to load cart:", error);
         localStorage.removeItem(CART_STORAGE_KEY);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -136,6 +146,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clearCart,
         getCartCount,
         getTotalItems,
+        isLoading,
       }}
     >
       {children}
