@@ -90,7 +90,7 @@ export function Header() {
               </Button>
             </Link>
 
-            {isAuthenticated && user ? (
+            {isAuthenticated && user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
@@ -143,13 +143,6 @@ export function Header() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
-              <Button asChild data-testid="button-login">
-                <a href="/api/login">
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Log In
-                </a>
-              </Button>
             )}
 
             <Button variant="ghost" size="icon" className="sm:hidden" data-testid="button-menu">
