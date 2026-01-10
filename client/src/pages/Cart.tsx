@@ -20,11 +20,6 @@ export default function Cart() {
     window.print();
   };
 
-  const subtotal = items.reduce((sum, item) => {
-    const price = item.product.price ? parseFloat(item.product.price) : 0;
-    return sum + price * item.quantity;
-  }, 0);
-
   const handleQuantityChange = (productId: number, newQuantity: number) => {
     if (newQuantity > 0) {
       updateQuantity(productId, newQuantity);
@@ -80,9 +75,6 @@ export default function Cart() {
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-4">
               {items.map((item) => {
-                const price = item.product.price ? parseFloat(item.product.price) : 0;
-                const itemTotal = price * item.quantity;
-
                 return (
                   <Card key={item.product.id} data-testid={`cart-item-${item.product.id}`}>
                     <CardContent className="p-6">
@@ -163,16 +155,6 @@ export default function Cart() {
                                 <Plus className="h-3 w-3" />
                               </Button>
                             </div>
-                            {price > 0 && (
-                              <div className="text-right">
-                                <div className="font-semibold" data-testid={`text-item-total-${item.product.id}`}>
-                                  ${itemTotal.toFixed(2)}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  ${price.toFixed(2)} each
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -192,15 +174,6 @@ export default function Cart() {
                         <span className="text-muted-foreground">Items</span>
                         <span data-testid="text-total-items">{getTotalItems()}</span>
                       </div>
-                      {subtotal > 0 && (
-                        <>
-                          <Separator />
-                          <div className="flex justify-between text-lg font-semibold">
-                            <span>Subtotal</span>
-                            <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
 

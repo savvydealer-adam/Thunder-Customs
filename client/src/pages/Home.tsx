@@ -11,7 +11,7 @@ export default function Home() {
     {
       icon: Package,
       title: "Wide Selection",
-      description: "1000+ premium automotive accessories and parts",
+      description: "9000+ premium automotive accessories and parts",
     },
     {
       icon: Shield,

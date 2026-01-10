@@ -1,0 +1,148 @@
+## Task: Remove ALL Remaining Pricing from Customer-Facing Pages
+
+There are 4 files that still show pricing to customers. Remove all of it.
+
+---
+
+### FILE 1: client/src/lib/pdfGenerator.ts
+
+**Remove price columns and subtotal completely:**
+
+1. Change line 15 from "Shopping List" to "Quote Request List"
+
+2. Replace the tableData mapping (lines 22-35) with:
+```tsx
+const tableData = items.map((item) => {
+  return [
+    item.product.partNumber,
+    item.product.partName,
+    item.product.manufacturer,
+    item.product.category,
+    item.quantity.toString(),
+  ];
+});
+```
+
+3. Change the table head (line 40) to:
+```tsx
+head: [["Part #", "Part Name", "Manufacturer", "Category", "Qty"]],
+```
+
+4. Replace columnStyles (lines 52-60) with:
+```tsx
+columnStyles: {
+  0: { cellWidth: 30 }, // Part #
+  1: { cellWidth: 70 }, // Part Name
+  2: { cellWidth: 35 }, // Manufacturer
+  3: { cellWidth: 35 }, // Category
+  4: { cellWidth: 20, halign: "center" }, // Qty
+},
+```
+
+5. DELETE the entire subtotal section (lines 64-79)
+
+6. Change filename (line 97) to:
+```tsx
+const fileName = `Thunder_Customs_Quote_Request_${new Date().toISOString().split('T')[0]}.pdf`;
+```
+
+---
+
+### FILE 2: client/src/pages/Cart.tsx
+
+1. DELETE the subtotal calculation (lines 23-26):
+```tsx
+const subtotal = items.reduce((sum, item) => {
+  const price = item.product.price ? parseFloat(item.product.price) : 0;
+  return sum + price * item.quantity;
+}, 0);
+```
+
+2. Inside the items.map(), DELETE these lines (83-84):
+```tsx
+const price = item.product.price ? parseFloat(item.product.price) : 0;
+const itemTotal = price * item.quantity;
+```
+
+3. DELETE the price display block (lines 166-175):
+```tsx
+{price > 0 && (
+  <div className="text-right">
+    <div className="font-semibold" data-testid={`text-item-total-${item.product.id}`}>
+      ${itemTotal.toFixed(2)}
+    </div>
+    <div className="text-xs text-muted-foreground">
+      ${price.toFixed(2)} each
+    </div>
+  </div>
+)}
+```
+
+4. DELETE the subtotal display in Summary (lines 195-203):
+```tsx
+{subtotal > 0 && (
+  <>
+    <Separator />
+    <div className="flex justify-between text-lg font-semibold">
+      <span>Subtotal</span>
+      <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
+    </div>
+  </>
+)}
+```
+
+---
+
+### FILE 3: client/src/components/LeadSubmissionForm.tsx
+
+1. DELETE the subtotal calculation (lines 41-44):
+```tsx
+const subtotal = items.reduce((sum, item) => {
+  const price = item.product.price ? parseFloat(item.product.price) : 0;
+  return sum + price * item.quantity;
+}, 0);
+```
+
+2. In the cartItems mapping, REMOVE the price field (line 57):
+```tsx
+// Remove this line: price: item.product.price,
+```
+
+3. Change cartTotal to just item count (line 61):
+```tsx
+// Change from: cartTotal: subtotal.toFixed(2),
+// To: cartTotal: null,
+```
+
+4. Change the Alert message (lines 224-229) to:
+```tsx
+<Alert>
+  <AlertDescription>
+    Your request includes {items.length} item(s)
+  </AlertDescription>
+</Alert>
+```
+
+---
+
+### FILE 4: client/src/pages/Home.tsx
+
+Change line 14 from:
+```tsx
+description: "1000+ premium automotive accessories and parts",
+```
+
+To:
+```tsx
+description: "9000+ premium automotive accessories and parts",
+```
+
+---
+
+### Test After Changes
+
+1. Go to /products, add items to cart
+2. Go to /cart - NO prices should appear anywhere
+3. Click "Request Quote" - form should NOT show dollar amounts
+4. Click "Download PDF" - PDF should have NO Price/Total columns
+5. Go to home page - should say "9000+"

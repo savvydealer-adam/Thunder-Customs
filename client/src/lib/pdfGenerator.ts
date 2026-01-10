@@ -12,7 +12,7 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text("Shopping List", 105, 30, { align: "center" });
+  doc.text("Quote Request List", 105, 30, { align: "center" });
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
@@ -20,24 +20,19 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   
   // Table data
   const tableData = items.map((item) => {
-    const price = item.product.price ? parseFloat(item.product.price) : 0;
-    const total = price * item.quantity;
-    
     return [
       item.product.partNumber,
       item.product.partName,
       item.product.manufacturer,
       item.product.category,
       item.quantity.toString(),
-      price > 0 ? `$${price.toFixed(2)}` : "N/A",
-      price > 0 ? `$${total.toFixed(2)}` : "N/A",
     ];
   });
 
   // Add table
   autoTable(doc, {
     startY: 45,
-    head: [["Part #", "Part Name", "Manufacturer", "Category", "Qty", "Price", "Total"]],
+    head: [["Part #", "Part Name", "Manufacturer", "Category", "Qty"]],
     body: tableData,
     theme: "grid",
     headStyles: {
@@ -50,33 +45,14 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
       fontSize: 9,
     },
     columnStyles: {
-      0: { cellWidth: 25 }, // Part #
-      1: { cellWidth: 50 }, // Part Name
-      2: { cellWidth: 30 }, // Manufacturer
-      3: { cellWidth: 28 }, // Category
-      4: { cellWidth: 15, halign: "center" }, // Qty
-      5: { cellWidth: 20, halign: "right" }, // Price
-      6: { cellWidth: 22, halign: "right" }, // Total
+      0: { cellWidth: 30 }, // Part #
+      1: { cellWidth: 70 }, // Part Name
+      2: { cellWidth: 35 }, // Manufacturer
+      3: { cellWidth: 35 }, // Category
+      4: { cellWidth: 20, halign: "center" }, // Qty
     },
     margin: { left: 10, right: 10 },
   });
-
-  // Calculate subtotal
-  const subtotal = items.reduce((sum, item) => {
-    const price = item.product.price ? parseFloat(item.product.price) : 0;
-    return sum + price * item.quantity;
-  }, 0);
-
-  // Add subtotal if prices are available
-  if (subtotal > 0) {
-    const finalY = (doc as any).lastAutoTable.finalY || 45;
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 190, finalY + 10, { align: "right" });
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Final pricing and availability to be confirmed at dealership", 105, finalY + 20, { align: "center" });
-  }
 
   // Footer
   const pageCount = doc.getNumberOfPages();
@@ -94,6 +70,6 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   }
 
   // Save the PDF
-  const fileName = `Thunder_Customs_Shopping_List_${new Date().toISOString().split('T')[0]}.pdf`;
+  const fileName = `Thunder_Customs_Quote_Request_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 }

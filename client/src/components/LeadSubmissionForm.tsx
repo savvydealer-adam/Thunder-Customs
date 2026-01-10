@@ -38,11 +38,6 @@ export function LeadSubmissionForm() {
     comments: "",
   });
 
-  const subtotal = items.reduce((sum, item) => {
-    const price = item.product.price ? parseFloat(item.product.price) : 0;
-    return sum + price * item.quantity;
-  }, 0);
-
   const submitMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest('POST', '/api/leads', {
@@ -54,11 +49,10 @@ export function LeadSubmissionForm() {
             partName: item.product.partName,
             manufacturer: item.product.manufacturer,
             category: item.product.category,
-            price: item.product.price,
           },
           quantity: item.quantity,
         })),
-        cartTotal: subtotal.toFixed(2),
+        cartTotal: null,
       });
     },
     onSuccess: () => {
@@ -223,8 +217,7 @@ export function LeadSubmissionForm() {
 
             <Alert>
               <AlertDescription>
-                Your request includes {items.length} item(s) 
-                {subtotal > 0 && ` totaling $${subtotal.toFixed(2)}`}
+                Your request includes {items.length} item(s)
               </AlertDescription>
             </Alert>
 
