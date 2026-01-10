@@ -1,0 +1,84 @@
+## Task: Fix "Add" Button on Product Cards - It Does Nothing
+
+The "Add to Cart" button on product cards in the product grid has NO onClick handler. Customers cannot add products to their cart from the grid view.
+
+### File: client/src/components/ProductCard.tsx
+
+**Step 1: Import useCart hook**
+
+Add this import at the top:
+```tsx
+import { useCart } from "@/contexts/CartContext";
+```
+
+**Step 2: Add the hook inside the component**
+
+After the existing `const { isAuthenticated } = useAuth();` line, add:
+```tsx
+const { addToCart } = useCart();
+```
+
+**Step 3: Create click handler**
+
+Add this function inside the component, before the return statement:
+```tsx
+const handleAddToCart = (e: React.MouseEvent) => {
+  e.preventDefault(); // Prevent navigation since card is wrapped in Link
+  e.stopPropagation(); // Stop event bubbling
+  addToCart(product, 1);
+};
+```
+
+**Step 4: Add onClick to the Button**
+
+Find this button (around line 107):
+```tsx
+<Button size="sm" className="gap-2" data-testid={`button-add-to-cart-${product.id}`}>
+  <ShoppingCart className="h-4 w-4" />
+  Add
+</Button>
+```
+
+Change it to:
+```tsx
+<Button 
+  size="sm" 
+  className="gap-2" 
+  onClick={handleAddToCart}
+  data-testid={`button-add-to-cart-${product.id}`}
+>
+  <ShoppingCart className="h-4 w-4" />
+  Add
+</Button>
+```
+
+**Step 5: Add toast notification for feedback (optional but recommended)**
+
+Add import:
+```tsx
+import { useToast } from "@/hooks/use-toast";
+```
+
+Add inside component:
+```tsx
+const { toast } = useToast();
+```
+
+Update the handler:
+```tsx
+const handleAddToCart = (e: React.MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  addToCart(product, 1);
+  toast({
+    title: "Added to list",
+    description: `${product.partName} has been added to your quote list.`,
+  });
+};
+```
+
+### Test
+1. Go to /products
+2. Click "Add" button on any product card
+3. Verify cart count increases in header
+4. Go to /cart and verify product appears
