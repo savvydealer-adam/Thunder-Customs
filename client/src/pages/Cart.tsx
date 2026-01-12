@@ -8,6 +8,7 @@ import { ShoppingCart, ArrowLeft, Trash2, Plus, Minus, Download, Printer } from 
 import { useCart } from "@/contexts/CartContext";
 import { generateShoppingListPDF } from "@/lib/pdfGenerator";
 import { LeadSubmissionForm } from "@/components/LeadSubmissionForm";
+import { OrderCreationForm } from "@/components/OrderCreationForm";
 
 export default function Cart() {
   const { items, updateQuantity, removeFromCart, clearCart, getTotalItems, isLoading } = useCart();
@@ -200,6 +201,8 @@ export default function Cart() {
                     </p>
                     
                     <LeadSubmissionForm />
+                    
+                    <OrderCreationForm />
                     
                     <Separator />
                     
