@@ -1,5 +1,5 @@
 // Reference: blueprint:javascript_log_in_with_replit
-import { products, categories, manufacturers, vehicleMakes, users, leads, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake, type User, type UpsertUser, type Lead, type InsertLead } from "@shared/schema";
+import { products, categories, manufacturers, vehicleMakes, users, leads, orders, type Product, type InsertProduct, type Category, type InsertCategory, type Manufacturer, type InsertManufacturer, type VehicleMake, type InsertVehicleMake, type User, type UpsertUser, type Lead, type InsertLead, type Order, type InsertOrder } from "@shared/schema";
 import { db } from "./db";
 import { eq, ilike, and, or, inArray, sql, isNull, desc } from "drizzle-orm";
 
@@ -46,6 +46,14 @@ export interface IStorage {
   updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null }): Promise<Lead | undefined>;
   deleteLead(id: number): Promise<boolean>;
   getLeadStats(): Promise<{ status: string; count: number }[]>;
+  
+  // Order operations
+  createOrder(order: InsertOrder): Promise<Order>;
+  getOrders(filters?: { status?: string; search?: string; createdBy?: string }): Promise<Order[]>;
+  getOrder(id: number): Promise<Order | undefined>;
+  updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null }): Promise<Order | undefined>;
+  deleteOrder(id: number): Promise<boolean>;
+  getOrderStats(): Promise<{ status: string; count: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -376,6 +384,90 @@ export class DatabaseStorage implements IStorage {
       })
       .from(leads)
       .groupBy(leads.status);
+    return stats;
+  }
+
+  // Order operations
+  async createOrder(order: InsertOrder): Promise<Order> {
+    const [newOrder] = await db.insert(orders).values(order).returning();
+    return newOrder;
+  }
+
+  async getOrders(filters?: { status?: string; search?: string; createdBy?: string }): Promise<Order[]> {
+    const conditions = [];
+    
+    if (filters?.status && filters.status !== 'all') {
+      conditions.push(eq(orders.status, filters.status));
+    }
+    
+    if (filters?.createdBy) {
+      conditions.push(eq(orders.createdBy, filters.createdBy));
+    }
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          ilike(orders.customerName, searchTerm),
+          ilike(orders.customerEmail, searchTerm),
+          ilike(orders.customerPhone, searchTerm)
+        )
+      );
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
+    }
+    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+  }
+
+  async getOrder(id: number): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, id));
+    return order;
+  }
+
+  async updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null }): Promise<Order | undefined> {
+    const updateData: any = { updatedAt: new Date() };
+    
+    if (data.status !== undefined) {
+      updateData.status = data.status;
+    }
+    if (data.assignedTo !== undefined) {
+      updateData.assignedTo = data.assignedTo;
+    }
+    if (data.notes !== undefined) {
+      updateData.notes = data.notes;
+    }
+    
+    // If status is being changed to 'completed', set completedAt
+    if (data.status === 'completed') {
+      const existingOrder = await this.getOrder(id);
+      if (existingOrder && !existingOrder.completedAt) {
+        updateData.completedAt = new Date();
+      }
+    }
+    
+    const [order] = await db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, id))
+      .returning();
+    return order;
+  }
+
+  async deleteOrder(id: number): Promise<boolean> {
+    const result = await db.delete(orders).where(eq(orders.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getOrderStats(): Promise<{ status: string; count: number }[]> {
+    const stats = await db
+      .select({
+        status: orders.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(orders)
+      .groupBy(orders.status);
     return stats;
   }
 }

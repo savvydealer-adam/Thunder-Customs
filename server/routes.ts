@@ -800,6 +800,168 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Order routes - for salesmen and managers to create orders on behalf of customers
+  app.post("/api/orders", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const orderSchema = z.object({
+        customerName: z.string().min(1, "Customer name is required"),
+        customerEmail: z.string().email().optional().nullable(),
+        customerPhone: z.string().optional().nullable(),
+        vehicleInfo: z.string().optional().nullable(),
+        notes: z.string().optional().nullable(),
+        cartItems: z.array(z.object({
+          product: z.object({
+            id: z.number(),
+            partNumber: z.string(),
+            partName: z.string(),
+            manufacturer: z.string(),
+            category: z.string(),
+            price: z.string().nullable().optional(),
+          }),
+          quantity: z.number().min(1),
+        })).min(1, "Order must have at least one item"),
+        cartTotal: z.string().optional().nullable(),
+      });
+
+      const validationResult = orderSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: validationResult.error.errors,
+        });
+      }
+
+      const data = validationResult.data;
+      const userId = req.user?.claims?.sub;
+      
+      // Get user info for createdByName
+      const user = await storage.getUser(userId);
+      const createdByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : null;
+      
+      const itemCount = data.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+      
+      const order = await storage.createOrder({
+        customerName: data.customerName,
+        customerEmail: data.customerEmail || null,
+        customerPhone: data.customerPhone || null,
+        vehicleInfo: data.vehicleInfo || null,
+        notes: data.notes || null,
+        cartItems: data.cartItems,
+        cartTotal: data.cartTotal || null,
+        itemCount,
+        status: 'pending',
+        createdBy: userId,
+        createdByName,
+      });
+
+      res.json({
+        success: true,
+        orderId: order.id,
+        message: "Order created successfully",
+      });
+    } catch (error) {
+      console.error("Error creating order:", error);
+      res.status(500).json({ error: "Failed to create order" });
+    }
+  });
+
+  // Get orders - authenticated staff can view orders
+  app.get("/api/orders", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { status, search, createdBy } = req.query;
+      const orders = await storage.getOrders({
+        status: status as string,
+        search: search as string,
+        createdBy: createdBy as string,
+      });
+      res.json(orders);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Get order stats
+  app.get("/api/orders/stats", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const stats = await storage.getOrderStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching order stats:", error);
+      res.status(500).json({ error: "Failed to fetch order stats" });
+    }
+  });
+
+  // Get single order
+  app.get("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const order = await storage.getOrder(id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  // Update order
+  app.patch("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, assignedTo, notes } = req.body;
+      
+      const updateData: any = {};
+      
+      if (status) {
+        const validStatuses = ['pending', 'processing', 'completed', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({ error: "Invalid status" });
+        }
+        updateData.status = status;
+      }
+      
+      if (assignedTo !== undefined) {
+        updateData.assignedTo = assignedTo;
+      }
+      
+      if (notes !== undefined) {
+        updateData.notes = notes;
+      }
+      
+      const order = await storage.updateOrder(id, updateData);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      console.error("Error updating order:", error);
+      res.status(500).json({ error: "Failed to update order" });
+    }
+  });
+
+  // Delete order - admin only
+  app.delete("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteOrder(id);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      res.json({ success: true, message: "Order deleted" });
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      res.status(500).json({ error: "Failed to delete order" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -163,6 +163,35 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   updatedAt: true,
 });
 
+// Orders table for staff-created orders on behalf of customers
+export const orders = pgTable("orders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  customerName: varchar("customer_name", { length: 200 }).notNull(),
+  customerEmail: varchar("customer_email", { length: 255 }),
+  customerPhone: varchar("customer_phone", { length: 50 }),
+  vehicleInfo: text("vehicle_info"),
+  notes: text("notes"),
+  cartItems: jsonb("cart_items").notNull(),
+  cartTotal: decimal("cart_total", { precision: 10, scale: 2 }),
+  itemCount: integer("item_count").notNull(),
+  status: varchar("status", { length: 50 }).notNull().default('pending'),
+  createdBy: varchar("created_by").notNull(),
+  createdByName: varchar("created_by_name", { length: 200 }),
+  assignedTo: varchar("assigned_to"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type Order = typeof orders.$inferSelect;
+
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
