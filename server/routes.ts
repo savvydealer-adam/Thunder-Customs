@@ -5,7 +5,7 @@ import { z } from "zod";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
-import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin } from "./replitAuth";
+import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireStaff } from "./replitAuth";
 import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
@@ -214,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get leads - authenticated staff can view leads
-  app.get("/api/leads", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const { status, search } = req.query;
       const leads = await storage.getLeads({
@@ -229,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get lead stats - authenticated staff can view
-  app.get("/api/leads/stats", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads/stats", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const stats = await storage.getLeadStats();
       res.json(stats);
@@ -240,7 +240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single lead with ADF download
-  app.get("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const lead = await storage.getLead(id);
@@ -257,7 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Download ADF XML for a lead
-  app.get("/api/leads/:id/adf", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads/:id/adf", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const lead = await storage.getLead(id);
@@ -276,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update lead - authenticated staff can update
-  app.patch("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/leads/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { status, assignedTo, comments } = req.body;
@@ -774,7 +774,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { role } = req.body;
 
-      if (!role || !['admin', 'manager', 'staff'].includes(role)) {
+      // Valid roles: customer (default), salesman, manager, admin (staff kept for backward compatibility)
+      if (!role || !['admin', 'manager', 'salesman', 'staff', 'customer'].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
 
@@ -800,8 +801,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User profile update (any authenticated user can update their own profile)
+  app.patch("/api/users/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const profileSchema = z.object({
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+      });
+
+      const validationResult = profileSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: validationResult.error.errors,
+        });
+      }
+
+      const updated = await storage.updateUserProfile(userId, validationResult.data);
+      if (!updated) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ success: true, user: updated });
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
   // Order routes - for all authenticated staff to create orders on behalf of customers
-  app.post("/api/orders", isAuthenticated, async (req: any, res) => {
+  app.post("/api/orders", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const orderSchema = z.object({
         customerName: z.string().min(1, "Customer name is required"),
@@ -866,7 +902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get orders - authenticated staff can view orders
-  app.get("/api/orders", isAuthenticated, async (req: any, res) => {
+  app.get("/api/orders", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const { status, search, createdBy } = req.query;
       const orders = await storage.getOrders({
@@ -882,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get order stats
-  app.get("/api/orders/stats", isAuthenticated, async (req: any, res) => {
+  app.get("/api/orders/stats", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const stats = await storage.getOrderStats();
       res.json(stats);
@@ -893,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single order
-  app.get("/api/orders/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const order = await storage.getOrder(id);
@@ -910,7 +946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update order
-  app.patch("/api/orders/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { status, assignedTo, notes } = req.body;

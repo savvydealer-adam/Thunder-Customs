@@ -19,7 +19,7 @@ import {
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { user, isAuthenticated, isAdmin, isStrictAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin, isStrictAdmin, isStaff } = useAuth();
   const { getTotalItems } = useCart();
   const cartItemCount = getTotalItems();
 
@@ -57,7 +57,7 @@ export function Header() {
               </Button>
             </Link>
             
-            {isAuthenticated && (
+            {isStaff && (
               <Link href="/leads" className="hidden sm:block">
                 <Button variant="ghost" data-testid="button-leads">
                   <ClipboardList className="w-4 h-4 mr-2" />
@@ -66,7 +66,7 @@ export function Header() {
               </Link>
             )}
             
-            {isAuthenticated && (
+            {isStaff && (
               <Link href="/orders" className="hidden sm:block">
                 <Button variant="ghost" data-testid="button-orders">
                   <FileBox className="w-4 h-4 mr-2" />
@@ -134,17 +134,27 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/leads" data-testid="menu-leads">
-                      <ClipboardList className="w-4 h-4 mr-2" />
-                      Lead Requests
+                    <Link href="/profile" data-testid="menu-profile">
+                      <User className="w-4 h-4 mr-2" />
+                      My Profile
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/orders" data-testid="menu-orders">
-                      <FileBox className="w-4 h-4 mr-2" />
-                      Orders
-                    </Link>
-                  </DropdownMenuItem>
+                  {isStaff && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/leads" data-testid="menu-leads">
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Lead Requests
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {isStaff && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/orders" data-testid="menu-orders">
+                        <FileBox className="w-4 h-4 mr-2" />
+                        Orders
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   {isAdmin && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin" data-testid="menu-admin">

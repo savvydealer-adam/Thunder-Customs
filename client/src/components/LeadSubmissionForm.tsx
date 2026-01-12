@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, CheckCircle, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface LeadFormData {
@@ -26,6 +27,7 @@ export function LeadSubmissionForm() {
   const [open, setOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { items, clearCart } = useCart();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState<LeadFormData>({
@@ -37,6 +39,19 @@ export function LeadSubmissionForm() {
     vehicleInfo: "",
     comments: "",
   });
+
+  // Pre-fill form with user profile data when available
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: user.firstName || prev.firstName,
+        lastName: user.lastName || prev.lastName,
+        email: user.email || prev.email,
+        phone: (user as any).phone || prev.phone,
+      }));
+    }
+  }, [user]);
 
   const submitMutation = useMutation({
     mutationFn: async () => {

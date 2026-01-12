@@ -50,7 +50,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user, isStaff } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { items: cartItems, clearCart } = useCart();
@@ -212,7 +212,7 @@ export default function Orders() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !isStaff) {
     return <Redirect to="/" />;
   }
 

@@ -20,14 +20,19 @@ export function useAuth() {
   });
 
   const user = data?.user ?? null;
+  const role = user?.role ?? 'customer';
 
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
+    // Is a regular customer (default role for new signups)
+    isCustomer: role === 'customer',
+    // Can access staff features (orders, leads) - any non-customer role
+    isStaff: role === 'salesman' || role === 'staff' || role === 'manager' || role === 'admin',
     // Can access admin features (product management, admin dashboard)
-    isAdmin: user?.role === 'admin' || user?.role === 'manager',
-    // Can access strict admin features (employee management only)
-    isStrictAdmin: user?.role === 'admin',
+    isAdmin: role === 'admin' || role === 'manager',
+    // Can access strict admin features (user role management only)
+    isStrictAdmin: role === 'admin',
   };
 }

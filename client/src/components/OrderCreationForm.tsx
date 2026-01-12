@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ export function OrderCreationForm() {
   const [open, setOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { items, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isStaff } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -35,6 +35,19 @@ export function OrderCreationForm() {
     vehicleInfo: "",
     notes: "",
   });
+
+  // Pre-fill form with user profile data if they're a customer placing their own order
+  useEffect(() => {
+    if (user && !isStaff) {
+      const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+      setFormData(prev => ({
+        ...prev,
+        customerName: fullName || prev.customerName,
+        customerEmail: user.email || prev.customerEmail,
+        customerPhone: (user as any).phone || prev.customerPhone,
+      }));
+    }
+  }, [user, isStaff]);
 
   const cartTotal = items.reduce((sum, item) => {
     const price = item.product.totalRetail || item.product.partMSRP || item.product.price;

@@ -16,7 +16,19 @@ The frontend uses React with TypeScript, Vite for fast development, Wouter for r
 
 ### Backend Architecture
 
-The backend is built with Express.js and TypeScript, handling API routes, logging, and file uploads via Multer. Authentication and authorization are managed through Replit Auth (OpenID Connect) with PostgreSQL-backed sessions and role-based access control (Admin, Manager, Staff). Protected routes enforce access based on roles, ensuring secure product and employee management. The API is RESTful, supporting product filtering, CRUD operations, batch imports, and automated image sourcing. Data access is abstracted using an `IStorage` interface, with `DatabaseStorage` implementing operations via Drizzle ORM.
+The backend is built with Express.js and TypeScript, handling API routes, logging, and file uploads via Multer. Authentication and authorization are managed through Replit Auth (OpenID Connect) with PostgreSQL-backed sessions and role-based access control. Protected routes enforce access based on roles, ensuring secure product and employee management. The API is RESTful, supporting product filtering, CRUD operations, batch imports, and automated image sourcing. Data access is abstracted using an `IStorage` interface, with `DatabaseStorage` implementing operations via Drizzle ORM.
+
+### User Roles & Permissions (January 2026)
+
+The system supports four user roles with the following permissions:
+
+- **Customer** (default for new signups): Can browse products, add to cart, request quotes, and save profile info for checkout
+- **Salesman**: Can view leads, create/manage orders, and all customer permissions
+- **Staff (Legacy)**: Same as Salesman, retained for backward compatibility with existing users
+- **Manager**: Can manage products, admin features, and all salesman permissions
+- **Admin**: Full access including user role management
+
+User profiles include name, email, and phone fields that are saved and pre-filled on checkout forms. Admins can elevate users from Customer to Salesman/Manager via the User Management panel (/employees).
 
 ### Database Design
 

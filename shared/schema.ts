@@ -83,15 +83,17 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table for Replit Auth with employee roles
+// User storage table for Replit Auth with user roles
 // Reference: blueprint:javascript_log_in_with_replit
+// Roles: 'customer' (default for new signups), 'salesman', 'manager', 'admin'
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  phone: varchar("phone", { length: 50 }),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role", { length: 50 }).notNull().default('staff'),
+  role: varchar("role", { length: 50 }).notNull().default('customer'),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

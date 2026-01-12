@@ -50,7 +50,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Leads() {
-  const { isAuthenticated, isLoading: isAuthLoading, user, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user, isAdmin, isStaff } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
@@ -168,7 +168,7 @@ export default function Leads() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !isStaff) {
     return <Redirect to="/" />;
   }
 

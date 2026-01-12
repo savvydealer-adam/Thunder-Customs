@@ -15,6 +15,7 @@ import Admin from "@/pages/Admin";
 import EmployeeManagement from "@/pages/EmployeeManagement";
 import Leads from "@/pages/Leads";
 import Orders from "@/pages/Orders";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/employees" component={EmployeeManagement} />
       <Route path="/leads" component={Leads} />
       <Route path="/orders" component={Orders} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

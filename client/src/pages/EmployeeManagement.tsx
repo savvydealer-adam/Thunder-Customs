@@ -77,8 +77,11 @@ export default function EmployeeManagement() {
         return "destructive";
       case "manager":
         return "default";
+      case "salesman":
       case "staff":
         return "secondary";
+      case "customer":
+        return "outline";
       default:
         return "outline";
     }
@@ -165,7 +168,9 @@ export default function EmployeeManagement() {
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="staff">Staff</SelectItem>
+                          <SelectItem value="salesman">Salesman</SelectItem>
+                          <SelectItem value="staff">Staff (Legacy)</SelectItem>
+                          <SelectItem value="customer">Customer</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -182,13 +187,19 @@ export default function EmployeeManagement() {
             </h3>
             <ul className="space-y-1 text-sm text-muted-foreground">
               <li>
-                <strong>Admin:</strong> Full access to all features including employee management
+                <strong>Admin:</strong> Full access to all features including user management
               </li>
               <li>
-                <strong>Manager:</strong> Can manage products and view admin features
+                <strong>Manager:</strong> Can manage products, orders, leads and admin features
               </li>
               <li>
-                <strong>Staff:</strong> Basic access (browse products, no admin features)
+                <strong>Salesman:</strong> Can create orders, view leads, and manage customers
+              </li>
+              <li>
+                <strong>Staff (Legacy):</strong> Same as Salesman, for backward compatibility
+              </li>
+              <li>
+                <strong>Customer:</strong> Can browse products, save cart info, and request quotes
               </li>
             </ul>
           </div>

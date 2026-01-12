@@ -38,6 +38,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<void>;
+  updateUserProfile(id: string, data: { firstName?: string; lastName?: string; phone?: string; email?: string }): Promise<User | undefined>;
   
   // Lead operations
   createLead(lead: InsertLead): Promise<Lead>;
@@ -303,6 +304,23 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ role, updatedAt: new Date() })
       .where(eq(users.id, id));
+  }
+
+  async updateUserProfile(id: string, data: { firstName?: string; lastName?: string; phone?: string; email?: string }): Promise<User | undefined> {
+    const updateData: Record<string, any> = { updatedAt: new Date() };
+    
+    // Only update fields with non-empty values to prevent overwriting with empty strings
+    if (data.firstName && data.firstName.trim()) updateData.firstName = data.firstName.trim();
+    if (data.lastName && data.lastName.trim()) updateData.lastName = data.lastName.trim();
+    if (data.phone && data.phone.trim()) updateData.phone = data.phone.trim();
+    if (data.email && data.email.trim()) updateData.email = data.email.trim();
+    
+    const [updated] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
   }
 
   // Lead operations

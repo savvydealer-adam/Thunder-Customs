@@ -63,8 +63,8 @@ async function upsertUser(
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
-    // Only set default role if user doesn't exist yet
-    role: existingUser?.role || 'staff',
+    // Only set default role if user doesn't exist yet - new users default to 'customer'
+    role: existingUser?.role || 'customer',
   });
 }
 
@@ -198,6 +198,26 @@ export const requireStrictAdmin: RequestHandler = async (req, res, next) => {
     const dbUser = await storage.getUser(user.claims.sub);
     if (!dbUser || dbUser.role !== 'admin') {
       return res.status(403).json({ message: "Forbidden: Admin-only access required" });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Middleware to check if user is staff (salesman, staff, manager, or admin - not customer)
+export const requireStaff: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+  
+  if (!user || !user.claims) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    const staffRoles = ['salesman', 'staff', 'manager', 'admin'];
+    if (!dbUser || !staffRoles.includes(dbUser.role)) {
+      return res.status(403).json({ message: "Forbidden: Staff access required" });
     }
     next();
   } catch (error) {
