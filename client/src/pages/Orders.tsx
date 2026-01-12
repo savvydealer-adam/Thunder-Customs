@@ -50,7 +50,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { isAuthenticated, isLoading: isAuthLoading, user, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { items: cartItems, clearCart } = useCart();
@@ -76,12 +76,12 @@ export default function Orders() {
       if (!response.ok) throw new Error('Failed to fetch orders');
       return response.json();
     },
-    enabled: isAuthenticated && isAdmin,
+    enabled: isAuthenticated,
   });
 
   const { data: stats } = useQuery<{ status: string; count: number }[]>({
     queryKey: ['/api/orders/stats'],
-    enabled: isAuthenticated && isAdmin,
+    enabled: isAuthenticated,
   });
 
   const createOrderMutation = useMutation({
@@ -212,7 +212,7 @@ export default function Orders() {
     );
   }
 
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated) {
     return <Redirect to="/" />;
   }
 

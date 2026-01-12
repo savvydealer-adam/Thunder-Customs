@@ -24,7 +24,7 @@ export function OrderCreationForm() {
   const [open, setOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { items, clearCart } = useCart();
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -113,7 +113,7 @@ export function OrderCreationForm() {
     }
   };
 
-  if (!isAuthenticated || !isAdmin || items.length === 0) {
+  if (!isAuthenticated || items.length === 0) {
     return null;
   }
 

@@ -800,8 +800,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Order routes - for salesmen and managers to create orders on behalf of customers
-  app.post("/api/orders", isAuthenticated, requireAdmin, async (req: any, res) => {
+  // Order routes - for all authenticated staff to create orders on behalf of customers
+  app.post("/api/orders", isAuthenticated, async (req: any, res) => {
     try {
       const orderSchema = z.object({
         customerName: z.string().min(1, "Customer name is required"),
@@ -866,7 +866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get orders - authenticated staff can view orders
-  app.get("/api/orders", isAuthenticated, requireAdmin, async (req: any, res) => {
+  app.get("/api/orders", isAuthenticated, async (req: any, res) => {
     try {
       const { status, search, createdBy } = req.query;
       const orders = await storage.getOrders({
@@ -882,7 +882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get order stats
-  app.get("/api/orders/stats", isAuthenticated, requireAdmin, async (req: any, res) => {
+  app.get("/api/orders/stats", isAuthenticated, async (req: any, res) => {
     try {
       const stats = await storage.getOrderStats();
       res.json(stats);
@@ -893,7 +893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single order
-  app.get("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+  app.get("/api/orders/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const order = await storage.getOrder(id);
@@ -910,7 +910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update order
-  app.patch("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+  app.patch("/api/orders/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { status, assignedTo, notes } = req.body;
@@ -945,7 +945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete order - admin only
+  // Delete order - admin/manager only
   app.delete("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);

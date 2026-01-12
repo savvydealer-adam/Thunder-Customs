@@ -66,7 +66,7 @@ export function Header() {
               </Link>
             )}
             
-            {isAdmin && (
+            {isAuthenticated && (
               <Link href="/orders" className="hidden sm:block">
                 <Button variant="ghost" data-testid="button-orders">
                   <FileBox className="w-4 h-4 mr-2" />
@@ -139,14 +139,12 @@ export function Header() {
                       Lead Requests
                     </Link>
                   </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/orders" data-testid="menu-orders">
-                        <FileBox className="w-4 h-4 mr-2" />
-                        Orders
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/orders" data-testid="menu-orders">
+                      <FileBox className="w-4 h-4 mr-2" />
+                      Orders
+                    </Link>
+                  </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin" data-testid="menu-admin">
