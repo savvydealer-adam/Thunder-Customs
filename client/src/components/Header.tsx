@@ -133,17 +133,37 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {isStrictAdmin && (
-                    <>
-                      <DropdownMenuItem asChild>
-                        <Link href="/employees">
-                          <User className="w-4 h-4 mr-2" />
-                          Manage Employees
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
+                  <DropdownMenuItem asChild>
+                    <Link href="/leads" data-testid="menu-leads">
+                      <ClipboardList className="w-4 h-4 mr-2" />
+                      Lead Requests
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/orders" data-testid="menu-orders">
+                        <FileBox className="w-4 h-4 mr-2" />
+                        Orders
+                      </Link>
+                    </DropdownMenuItem>
                   )}
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" data-testid="menu-admin">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Admin Panel
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {isStrictAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/employees" data-testid="menu-employees">
+                        <User className="w-4 h-4 mr-2" />
+                        Manage Employees
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <a href="/api/logout" className="w-full" data-testid="button-logout">
                       <LogOut className="w-4 h-4 mr-2" />
