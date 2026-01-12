@@ -118,7 +118,13 @@ export function OrderCreationForm() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        handleClose();
+      } else {
+        setOpen(true);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button className="w-full gap-2" variant="default" data-testid="button-create-order">
           <FileBox className="h-4 w-4" />
