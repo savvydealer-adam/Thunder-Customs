@@ -15,6 +15,7 @@ interface GoogleImageResult {
   link: string;
   displayLink: string;
   mime: string;
+  snippet?: string;
   image: {
     contextLink: string;
     height: number;
@@ -32,25 +33,92 @@ interface GoogleSearchResponse {
   };
 }
 
+/**
+ * Check if an image appears to be a vehicle photo rather than a product photo
+ * This helps filter out "fitment" images that show the car instead of the part
+ */
+function isVehicleImage(title: string = '', snippet: string = ''): boolean {
+  const text = `${title} ${snippet}`.toLowerCase();
+
+  // Vehicle model names that indicate this is a vehicle photo, not a product
+  const vehicleModels = [
+    'pacifica', 'voyager', 'town & country', 'caravan', 'grand caravan',
+    'charger', 'challenger', 'durango', '300', 'chrysler 300',
+    'wrangler', 'gladiator', 'grand cherokee', 'cherokee', 'compass', 'renegade',
+    'ram 1500', 'ram 2500', 'ram 3500', 'ram truck',
+    'dart', 'journey', 'hornet', 'wagon',
+    'silverado', 'tahoe', 'suburban', 'camaro', 'corvette', 'equinox', 'traverse',
+    'f-150', 'f150', 'mustang', 'explorer', 'bronco', 'escape',
+    'civic', 'accord', 'cr-v', 'pilot',
+    'camry', 'corolla', 'rav4', 'highlander', 'tacoma', 'tundra'
+  ];
+
+  // Words that indicate this IS a product image (not a vehicle)
+  const productWords = ['kit', 'box', 'package', 'part', 'filter', 'intake', 'oem', 'install', 'fob', 'remote', 'accessory'];
+
+  // Check if title contains vehicle model without product words
+  const hasVehicleModel = vehicleModels.some(model => text.includes(model));
+  const hasProductWord = productWords.some(word => text.includes(word));
+
+  // If it has a vehicle model name but no product words, it's likely a vehicle image
+  return hasVehicleModel && !hasProductWord;
+}
+
+/**
+ * Rank and sort images, prioritizing official product images over vehicle photos
+ */
+function rankImages(images: GoogleImageResult[]): GoogleImageResult[] {
+  const productImages: GoogleImageResult[] = [];      // Official CDN product images
+  const officialImages: GoogleImageResult[] = [];     // Other official sources
+  const otherImages: GoogleImageResult[] = [];        // Everything else
+  const vehicleImages: GoogleImageResult[] = [];      // Vehicle photos (deprioritized)
+
+  for (const img of images) {
+    const isVehicle = isVehicleImage(img.title, img.snippet);
+    const url = img.link.toLowerCase();
+
+    // Prioritize official Mopar CDN images
+    if (url.includes('cdn-product-images.revolutionparts.io')) {
+      if (isVehicle) vehicleImages.push(img);
+      else productImages.push(img);
+    } else if (url.includes('revolutionparts.io') || url.includes('revolutionparts.com')) {
+      if (isVehicle) vehicleImages.push(img);
+      else officialImages.push(img);
+    } else if (url.includes('cloudfront.net') || url.includes('mopar')) {
+      if (isVehicle) vehicleImages.push(img);
+      else officialImages.push(img);
+    } else {
+      if (isVehicle) vehicleImages.push(img);
+      else otherImages.push(img);
+    }
+  }
+
+  // Return sorted: product images first, then official, then others, then vehicle photos last
+  return [...productImages, ...officialImages, ...otherImages, ...vehicleImages];
+}
+
 async function searchGoogleImages(query: string): Promise<GoogleImageResult[]> {
   const url = new URL('https://www.googleapis.com/customsearch/v1');
-  url.searchParams.set('q', query);
+  // Add "product" to query to bias toward product images over vehicle photos
+  url.searchParams.set('q', query + ' product');
   url.searchParams.set('cx', GOOGLE_CSE_ID!);
   url.searchParams.set('key', GOOGLE_API_KEY!);
   url.searchParams.set('searchType', 'image');
-  url.searchParams.set('num', '5');
+  url.searchParams.set('num', '10');  // Get more results to filter
   url.searchParams.set('imgType', 'photo');
   url.searchParams.set('safe', 'active');
-  
+
   const response = await fetch(url.toString());
   const data: GoogleSearchResponse = await response.json();
-  
+
   if (data.error) {
     console.error(`  API Error: ${data.error.message}`);
     return [];
   }
-  
-  return data.items || [];
+
+  // Rank and filter images to prioritize product photos over vehicle photos
+  const rankedImages = rankImages(data.items || []);
+  return rankedImages;
 }
 
 async function downloadImage(url: string, filepath: string): Promise<boolean> {
