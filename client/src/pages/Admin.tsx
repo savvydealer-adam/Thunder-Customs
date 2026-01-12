@@ -1,25 +1,132 @@
 import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon, Download, Database } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon, Download, Database, Users, ShoppingCart, Shield, Mail, Phone, Calendar, Package } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect } from "wouter";
+import { format } from "date-fns";
+import type { User as UserType } from "@shared/schema";
+
+interface Order {
+  id: number;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  vehicleInfo: string | null;
+  notes: string | null;
+  cartItems: any[];
+  cartTotal: string | null;
+  itemCount: number;
+  status: string;
+  createdBy: string;
+  createdByName: string | null;
+  assignedTo: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+const statusColors: Record<string, string> = {
+  pending: "bg-blue-500",
+  processing: "bg-yellow-500",
+  completed: "bg-green-500",
+  cancelled: "bg-gray-500",
+};
 
 export default function Admin() {
   const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [activeTab, setActiveTab] = useState("orders");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Fetch all orders for admin view
+  const { data: orders, isLoading: isOrdersLoading } = useQuery<Order[]>({
+    queryKey: ['/api/orders'],
+    enabled: !!user && isAdmin,
+  });
+
+  // Fetch all users for admin view
+  const { data: users, isLoading: isUsersLoading } = useQuery<UserType[]>({
+    queryKey: ['/api/users'],
+    enabled: !!user && isAdmin,
+  });
+
+  // Role update mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      return await apiRequest('PATCH', `/api/users/${userId}/role`, { role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({
+        title: "Role Updated",
+        description: "User role has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update user role.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Order status update mutation
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      return await apiRequest('PATCH', `/api/orders/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      toast({
+        title: "Order Updated",
+        description: "Order status has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update Failed",
+        description: "Failed to update order status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRoleChange = (userId: string, newRole: string) => {
+    if (userId === user?.id) {
+      toast({
+        title: "Cannot Change Own Role",
+        description: "You cannot change your own role.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateRoleMutation.mutate({ userId, role: newRole });
+  };
+
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case "admin": return "destructive";
+      case "manager": return "default";
+      case "salesman":
+      case "staff": return "secondary";
+      case "customer": return "outline";
+      default: return "outline";
+    }
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -193,14 +300,232 @@ export default function Admin() {
     <div className="min-h-screen flex flex-col">
       
       <main className="flex-1">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Admin Portal</h1>
+            <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
+              <Shield className="w-8 h-8" />
+              Admin Portal
+            </h1>
             <p className="text-muted-foreground">
-              Manage products and import data from CSV files
+              Manage orders, users, and import product data
             </p>
           </div>
 
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="orders" className="flex items-center gap-2" data-testid="tab-orders">
+                <ShoppingCart className="h-4 w-4" />
+                Orders
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
+                <Users className="h-4 w-4" />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="tools" className="flex items-center gap-2" data-testid="tab-tools">
+                <Database className="h-4 w-4" />
+                Data Tools
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Orders Tab */}
+            <TabsContent value="orders" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" />
+                    All Orders
+                  </CardTitle>
+                  <CardDescription>
+                    View and manage all customer orders
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isOrdersLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <p className="text-muted-foreground">Loading orders...</p>
+                    </div>
+                  ) : !orders || orders.length === 0 ? (
+                    <Alert>
+                      <Package className="h-4 w-4" />
+                      <AlertDescription>
+                        No orders found.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-3">
+                      {orders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover-elevate gap-4"
+                          data-testid={`row-order-${order.id}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="font-semibold">Order #{order.id}</span>
+                              <Badge className={`${statusColors[order.status]} text-white`}>
+                                {order.status}
+                              </Badge>
+                            </div>
+                            <p className="font-medium mt-1">{order.customerName}</p>
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-1">
+                              {order.customerEmail && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {order.customerEmail}
+                                </span>
+                              )}
+                              {order.customerPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {order.customerPhone}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(order.createdAt), 'MMM d, yyyy')}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Package className="h-3 w-3" />
+                                {order.itemCount} items
+                              </span>
+                            </div>
+                            {order.cartTotal && (
+                              <p className="font-semibold text-primary mt-1">${order.cartTotal}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={order.status}
+                              onValueChange={(value) => updateOrderMutation.mutate({ id: order.id, status: value })}
+                              disabled={updateOrderMutation.isPending}
+                            >
+                              <SelectTrigger className="w-32" data-testid={`select-order-status-${order.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="processing">Processing</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Users Tab */}
+            <TabsContent value="users" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    All User Accounts
+                  </CardTitle>
+                  <CardDescription>
+                    Manage user roles and permissions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isUsersLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <p className="text-muted-foreground">Loading users...</p>
+                    </div>
+                  ) : !users || users.length === 0 ? (
+                    <Alert>
+                      <Users className="h-4 w-4" />
+                      <AlertDescription>
+                        No users found. Users will appear here after logging in for the first time.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-3">
+                      {users.map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover-elevate gap-4"
+                          data-testid={`row-user-${u.id}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                              <Users className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium" data-testid={`text-name-${u.id}`}>
+                                {u.firstName && u.lastName
+                                  ? `${u.firstName} ${u.lastName}`
+                                  : u.firstName || u.lastName || "No Name"}
+                              </p>
+                              <p className="text-sm text-muted-foreground" data-testid={`text-email-${u.id}`}>
+                                {u.email}
+                              </p>
+                              {u.phone && (
+                                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {u.phone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge
+                              variant={getRoleBadgeVariant(u.role)}
+                              className="capitalize"
+                              data-testid={`badge-role-${u.id}`}
+                            >
+                              {u.role}
+                            </Badge>
+                            {u.id === user?.id ? (
+                              <Badge variant="outline" data-testid={`badge-current-${u.id}`}>
+                                You
+                              </Badge>
+                            ) : (
+                              <Select
+                                value={u.role}
+                                onValueChange={(value) => handleRoleChange(u.id, value)}
+                                disabled={updateRoleMutation.isPending}
+                              >
+                                <SelectTrigger className="w-32" data-testid={`select-role-${u.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="manager">Manager</SelectItem>
+                                  <SelectItem value="salesman">Salesman</SelectItem>
+                                  <SelectItem value="staff">Staff (Legacy)</SelectItem>
+                                  <SelectItem value="customer">Customer</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-6 p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Role Permissions
+                    </h3>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                      <li><strong>Admin:</strong> Full access to all features including user management</li>
+                      <li><strong>Manager:</strong> Can manage products, orders, leads and admin features</li>
+                      <li><strong>Salesman:</strong> Can create orders, view leads, and manage customers</li>
+                      <li><strong>Staff (Legacy):</strong> Same as Salesman, for backward compatibility</li>
+                      <li><strong>Customer:</strong> Can browse products, save cart info, and request quotes</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Data Tools Tab */}
+            <TabsContent value="tools" className="space-y-6">
           <div className="grid gap-6">
             <Card>
               <CardHeader>
@@ -539,6 +864,8 @@ export default function Admin() {
               </CardContent>
             </Card>
           </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>
