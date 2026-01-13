@@ -20,14 +20,24 @@ export function Footer() {
               <span>Staff: {user.email}</span>
             </a>
           ) : (
-            <a 
-              href="/api/login" 
-              className="flex items-center gap-1 hover:text-foreground transition-colors"
-              data-testid="link-staff-login"
-            >
-              <LogIn className="h-3 w-3" />
-              <span>Staff Login</span>
-            </a>
+            <div className="flex items-center gap-3">
+              <a 
+                href="/api/login" 
+                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                data-testid="link-login"
+              >
+                <LogIn className="h-3 w-3" />
+                <span>Log In</span>
+              </a>
+              <span className="text-muted-foreground/50">|</span>
+              <a 
+                href="/api/login" 
+                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                data-testid="link-create-account"
+              >
+                <span>Create Account</span>
+              </a>
+            </div>
           )}
         </div>
       </div>
