@@ -444,7 +444,14 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
-  async updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null }): Promise<Order | undefined> {
+  async updateOrder(id: number, data: { 
+    status?: string; 
+    assignedTo?: string | null; 
+    notes?: string | null;
+    cartItems?: any[];
+    cartTotal?: string;
+    itemCount?: number;
+  }): Promise<Order | undefined> {
     const updateData: any = { updatedAt: new Date() };
     
     if (data.status !== undefined) {
@@ -455,6 +462,15 @@ export class DatabaseStorage implements IStorage {
     }
     if (data.notes !== undefined) {
       updateData.notes = data.notes;
+    }
+    if (data.cartItems !== undefined) {
+      updateData.cartItems = data.cartItems;
+    }
+    if (data.cartTotal !== undefined) {
+      updateData.cartTotal = data.cartTotal;
+    }
+    if (data.itemCount !== undefined) {
+      updateData.itemCount = data.itemCount;
     }
     
     // If status is being changed to 'completed', set completedAt

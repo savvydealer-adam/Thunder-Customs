@@ -949,7 +949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { status, assignedTo, notes } = req.body;
+      const { status, assignedTo, notes, cartItems, cartTotal, itemCount } = req.body;
       
       const updateData: any = {};
       
@@ -967,6 +967,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (notes !== undefined) {
         updateData.notes = notes;
+      }
+      
+      // Support updating order items (for staff editing orders)
+      if (cartItems !== undefined) {
+        updateData.cartItems = cartItems;
+      }
+      
+      if (cartTotal !== undefined) {
+        updateData.cartTotal = cartTotal;
+      }
+      
+      if (itemCount !== undefined) {
+        updateData.itemCount = itemCount;
       }
       
       const order = await storage.updateOrder(id, updateData);

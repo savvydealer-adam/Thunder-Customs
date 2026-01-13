@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart } from "lucide-react";
+import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart, Pencil, Save, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -57,6 +57,16 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableItems, setEditableItems] = useState<any[]>([]);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({
+    partName: "",
+    partNumber: "",
+    manufacturer: "",
+    price: "",
+    quantity: 1,
+  });
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newOrderData, setNewOrderData] = useState({
     customerName: "",
@@ -203,6 +213,110 @@ export default function Orders() {
   };
 
   const totalOrders = stats?.reduce((sum, s) => sum + s.count, 0) || 0;
+
+  const startEditing = () => {
+    if (selectedOrder) {
+      setEditableItems(selectedOrder.cartItems.map((item: any) => ({
+        ...item,
+        product: { ...item.product },
+      })));
+      setIsEditing(true);
+    }
+  };
+
+  const cancelEditing = (closeDialog: boolean = false) => {
+    setIsEditing(false);
+    setEditableItems([]);
+    setShowAddItem(false);
+    setNewItem({ partName: "", partNumber: "", manufacturer: "", price: "", quantity: 1 });
+    if (closeDialog) {
+      setSelectedOrder(null);
+    }
+  };
+
+  const updateItemQuantity = (index: number, quantity: number) => {
+    const updated = [...editableItems];
+    updated[index].quantity = Math.max(1, quantity);
+    setEditableItems(updated);
+  };
+
+  const updateItemPrice = (index: number, price: string) => {
+    const updated = [...editableItems];
+    updated[index].product.price = price;
+    setEditableItems(updated);
+  };
+
+  const removeItem = (index: number) => {
+    setEditableItems(editableItems.filter((_, i) => i !== index));
+  };
+
+  const addCustomItem = () => {
+    if (!newItem.partName.trim()) {
+      toast({ title: "Name Required", description: "Please enter a product name.", variant: "destructive" });
+      return;
+    }
+    const customItem = {
+      product: {
+        id: null,
+        partNumber: newItem.partNumber.trim() || `CUSTOM-${Date.now()}`,
+        partName: newItem.partName.trim(),
+        manufacturer: newItem.manufacturer.trim() || "Custom",
+        category: "Custom",
+        price: newItem.price || null,
+      },
+      quantity: newItem.quantity,
+    };
+    setEditableItems([...editableItems, customItem]);
+    setNewItem({ partName: "", partNumber: "", manufacturer: "", price: "", quantity: 1 });
+    setShowAddItem(false);
+  };
+
+  const calculateTotal = (items: any[]) => {
+    return items.reduce((sum, item) => {
+      const price = parseFloat(item.product.price) || 0;
+      return sum + (price * item.quantity);
+    }, 0).toFixed(2);
+  };
+
+  const saveOrderChanges = () => {
+    if (!selectedOrder) return;
+    
+    // Normalize items to ensure prices are strings and quantities are numbers
+    const normalizedItems = editableItems.map(item => ({
+      ...item,
+      quantity: Number(item.quantity) || 1,
+      product: {
+        ...item.product,
+        price: item.product.price ? String(item.product.price) : null,
+      }
+    }));
+    
+    const cartTotal = calculateTotal(normalizedItems);
+    const itemCount = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+    
+    updateOrderMutation.mutate({
+      id: selectedOrder.id,
+      data: {
+        cartItems: normalizedItems,
+        cartTotal,
+        itemCount,
+      }
+    }, {
+      onSuccess: () => {
+        // Update the selected order with new data so UI reflects changes
+        setSelectedOrder({
+          ...selectedOrder,
+          cartItems: normalizedItems,
+          cartTotal,
+          itemCount,
+        });
+        setIsEditing(false);
+        setEditableItems([]);
+        setShowAddItem(false);
+        // Note: Toast is handled by the mutation's global onSuccess handler
+      }
+    });
+  };
 
   if (isAuthLoading) {
     return (
@@ -446,7 +560,16 @@ export default function Orders() {
           </div>
         )}
 
-        <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <Dialog open={!!selectedOrder} onOpenChange={(open) => { 
+          if (!open) { 
+            if (isEditing) {
+              // If editing, just cancel edit mode but keep dialog open
+              // User should use Cancel button to discard changes
+              return;
+            }
+            setSelectedOrder(null); 
+          } 
+        }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             {selectedOrder && (
               <>
@@ -494,29 +617,159 @@ export default function Orders() {
 
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold">Order Items ({selectedOrder.itemCount})</h4>
-                      {selectedOrder.cartTotal && (
-                        <span className="font-semibold text-lg">${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
-                      )}
+                      <h4 className="font-semibold">
+                        Order Items ({isEditing ? editableItems.length : selectedOrder.itemCount})
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        {isEditing ? (
+                          <span className="font-semibold text-lg">${calculateTotal(editableItems)}</span>
+                        ) : (
+                          selectedOrder.cartTotal && (
+                            <span className="font-semibold text-lg">${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
+                          )
+                        )}
+                        {!isEditing && (
+                          <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-order">
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {selectedOrder.cartItems.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center text-sm bg-muted p-2 rounded">
-                          <div>
-                            <p className="font-medium">{item.product.partName}</p>
-                            <p className="text-muted-foreground">
-                              {item.product.partNumber} · {item.product.manufacturer}
-                            </p>
+                    
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        {editableItems.map((item: any, index: number) => (
+                          <div key={index} className="flex items-center gap-2 text-sm bg-muted p-2 rounded">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{item.product.partName}</p>
+                              <p className="text-muted-foreground text-xs truncate">
+                                {item.product.partNumber} · {item.product.manufacturer}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)}
+                                  className="h-8 text-center"
+                                  data-testid={`input-qty-${index}`}
+                                />
+                              </div>
+                              <div className="w-24">
+                                <Input
+                                  type="text"
+                                  placeholder="Price"
+                                  value={item.product.price || ""}
+                                  onChange={(e) => updateItemPrice(index, e.target.value)}
+                                  className="h-8"
+                                  data-testid={`input-price-${index}`}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => removeItem(index)}
+                                data-testid={`button-remove-${index}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p>Qty: {item.quantity}</p>
-                            {item.product.price && (
-                              <p className="text-muted-foreground">${item.product.price}</p>
-                            )}
+                        ))}
+                        
+                        {showAddItem ? (
+                          <div className="border rounded-md p-3 space-y-2 bg-background">
+                            <p className="font-medium text-sm">Add Custom Product</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Product Name *"
+                                value={newItem.partName}
+                                onChange={(e) => setNewItem({ ...newItem, partName: e.target.value })}
+                                data-testid="input-new-item-name"
+                              />
+                              <Input
+                                placeholder="Part Number"
+                                value={newItem.partNumber}
+                                onChange={(e) => setNewItem({ ...newItem, partNumber: e.target.value })}
+                                data-testid="input-new-item-number"
+                              />
+                              <Input
+                                placeholder="Manufacturer"
+                                value={newItem.manufacturer}
+                                onChange={(e) => setNewItem({ ...newItem, manufacturer: e.target.value })}
+                                data-testid="input-new-item-manufacturer"
+                              />
+                              <Input
+                                placeholder="Price"
+                                value={newItem.price}
+                                onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                                data-testid="input-new-item-price"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={newItem.quantity}
+                                onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 1 })}
+                                className="w-20"
+                                data-testid="input-new-item-qty"
+                              />
+                              <Button size="sm" onClick={addCustomItem} data-testid="button-add-custom-item">
+                                Add Item
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setShowAddItem(false)}>
+                                Cancel
+                              </Button>
+                            </div>
                           </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setShowAddItem(true)}
+                            data-testid="button-show-add-item"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Custom Product
+                          </Button>
+                        )}
+                        
+                        <div className="flex gap-2 pt-2">
+                          <Button onClick={saveOrderChanges} disabled={updateOrderMutation.isPending} data-testid="button-save-order">
+                            <Save className="h-4 w-4 mr-1" />
+                            {updateOrderMutation.isPending ? "Saving..." : "Save Changes"}
+                          </Button>
+                          <Button variant="outline" onClick={() => cancelEditing()}>
+                            Cancel
+                          </Button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {selectedOrder.cartItems.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between items-center text-sm bg-muted p-2 rounded">
+                            <div>
+                              <p className="font-medium">{item.product.partName}</p>
+                              <p className="text-muted-foreground">
+                                {item.product.partNumber} · {item.product.manufacturer}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p>Qty: {item.quantity}</p>
+                              {item.product.price && (
+                                <p className="text-muted-foreground">${item.product.price}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t pt-4">
