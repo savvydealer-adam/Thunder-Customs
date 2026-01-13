@@ -2,6 +2,167 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { CartItemWithProduct } from "@/contexts/CartContext";
 
+interface OrderForPDF {
+  id: number;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  vehicleInfo: string | null;
+  notes: string | null;
+  cartItems: any[];
+  cartTotal: string | null;
+  itemCount: number;
+  status: string;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export function generateOrderPDF(order: OrderForPDF) {
+  const doc = new jsPDF();
+  
+  // Header
+  doc.setFontSize(20);
+  doc.setTextColor(30, 144, 255); // Thunder Customs blue
+  doc.text("THUNDER CUSTOMS", 105, 20, { align: "center" });
+  
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Order #${order.id}`, 105, 30, { align: "center" });
+  
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  const orderDate = new Date(order.createdAt).toLocaleDateString();
+  doc.text(`Created: ${orderDate}`, 105, 37, { align: "center" });
+  
+  // Customer Info Section
+  let yPos = 50;
+  doc.setFontSize(12);
+  doc.setTextColor(30, 144, 255);
+  doc.text("Customer Information", 14, yPos);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  yPos += 8;
+  doc.text(`Name: ${order.customerName}`, 14, yPos);
+  
+  if (order.customerEmail) {
+    yPos += 6;
+    doc.text(`Email: ${order.customerEmail}`, 14, yPos);
+  }
+  
+  if (order.customerPhone) {
+    yPos += 6;
+    doc.text(`Phone: ${order.customerPhone}`, 14, yPos);
+  }
+  
+  if (order.vehicleInfo) {
+    yPos += 6;
+    doc.text(`Vehicle: ${order.vehicleInfo}`, 14, yPos);
+  }
+  
+  // Status and Sales Rep
+  yPos += 10;
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  const statusLabel = order.status.charAt(0).toUpperCase() + order.status.slice(1);
+  doc.text(`Status: ${statusLabel}`, 14, yPos);
+  
+  if (order.createdByName) {
+    yPos += 6;
+    doc.text(`Sales Rep: ${order.createdByName}`, 14, yPos);
+  }
+  
+  // Helper to parse price strings that may contain $ or other characters
+  const parsePrice = (priceStr: string | number | null | undefined): number => {
+    if (priceStr === null || priceStr === undefined || priceStr === "N/A") return 0;
+    const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Order Items Table
+  yPos += 12;
+  const tableData = order.cartItems.map((item: any) => {
+    const rawPrice = item.product?.price || item.price || null;
+    const price = parsePrice(rawPrice);
+    const subtotal = price * item.quantity;
+    return [
+      item.product?.partNumber || item.partNumber || "-",
+      item.product?.partName || item.partName || "Unknown Item",
+      item.product?.manufacturer || item.manufacturer || "-",
+      item.quantity.toString(),
+      price > 0 ? `$${price.toFixed(2)}` : "N/A",
+      subtotal > 0 ? `$${subtotal.toFixed(2)}` : "N/A",
+    ];
+  });
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [["Part #", "Part Name", "Manufacturer", "Qty", "Price", "Subtotal"]],
+    body: tableData,
+    theme: "grid",
+    headStyles: {
+      fillColor: [30, 144, 255],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 9,
+    },
+    bodyStyles: {
+      fontSize: 8,
+    },
+    columnStyles: {
+      0: { cellWidth: 28 },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 15, halign: "center" },
+      4: { cellWidth: 22, halign: "right" },
+      5: { cellWidth: 25, halign: "right" },
+    },
+    margin: { left: 14, right: 14 },
+  });
+  
+  // Order Total
+  const finalY = (doc as any).lastAutoTable.finalY || yPos + 50;
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Total Items: ${order.itemCount}`, 14, finalY + 10);
+  
+  if (order.cartTotal) {
+    doc.setFontSize(14);
+    doc.setTextColor(30, 144, 255);
+    doc.text(`Order Total: $${parseFloat(order.cartTotal).toFixed(2)}`, 14, finalY + 18);
+  }
+  
+  // Notes
+  if (order.notes) {
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Notes:", 14, finalY + 28);
+    doc.setTextColor(0, 0, 0);
+    const splitNotes = doc.splitTextToSize(order.notes, 180);
+    doc.text(splitNotes, 14, finalY + 34);
+  }
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      "Thunder Chrysler Dodge Jeep Ram - Automotive Accessories Department",
+      105,
+      285,
+      { align: "center" }
+    );
+    doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: "center" });
+  }
+
+  // Save the PDF
+  const fileName = `Thunder_Customs_Order_${order.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+}
+
 export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   const doc = new jsPDF();
   

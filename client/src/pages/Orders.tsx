@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart, Pencil, Save, X } from "lucide-react";
+import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart, Pencil, Save, X, Download } from "lucide-react";
+import { generateOrderPDF } from "@/lib/pdfGenerator";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -584,6 +585,16 @@ export default function Orders() {
                     Created {format(new Date(selectedOrder.createdAt), "MMMM d, yyyy 'at' h:mm a")}
                     {selectedOrder.createdByName && ` by ${selectedOrder.createdByName}`}
                   </DialogDescription>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-fit mt-2"
+                    onClick={() => generateOrderPDF(selectedOrder)}
+                    data-testid="button-download-order-pdf"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </Button>
                 </DialogHeader>
 
                 <div className="space-y-4">
