@@ -140,12 +140,18 @@ export async function setupAuth(app: Express) {
     });
   });
 
-  // Switch account - logs out current user and immediately prompts for new login
+  // Switch account - logs out current user at identity provider level and prompts for new login
   app.get("/api/switch-account", (req, res) => {
     req.logout(() => {
-      // Clear the session and redirect to login
-      req.session.destroy((err) => {
-        res.redirect("/api/login");
+      req.session.destroy(async (err) => {
+        // Redirect to Replit's end session endpoint, then back to login
+        // This clears the SSO session at the identity provider level
+        res.redirect(
+          client.buildEndSessionUrl(config, {
+            client_id: process.env.REPL_ID!,
+            post_logout_redirect_uri: `${req.protocol}://${req.hostname}/api/login`,
+          }).href
+        );
       });
     });
   });
