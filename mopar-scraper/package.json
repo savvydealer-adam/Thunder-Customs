@@ -1,0 +1,36 @@
+{
+  "name": "mopar-scraper",
+  "version": "1.0.0",
+  "description": "Scrape Mopar parts data (images, prices, descriptions) from Google searches",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "prepare-mopar": "node src/prepare-mopar.js",
+    "scrape": "node src/index.js scrape",
+    "scrape:view": "node src/index.js scrape --viewer",
+    "resume": "node src/index.js resume",
+    "status": "node src/index.js status",
+    "export": "node src/index.js export",
+    "viewer": "node src/index.js viewer"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "chalk": "^5.3.0",
+    "cheerio": "^1.1.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^12.0.0",
+    "csv-parse": "^5.5.0",
+    "csv-stringify": "^6.4.0",
+    "dotenv": "^16.6.1",
+    "got": "^14.0.0",
+    "ora": "^8.0.0",
+    "puppeteer": "^22.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

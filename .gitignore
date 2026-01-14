@@ -6,3 +6,9 @@ vite.config.ts.*
 *.tar.gz
 # Claude Code temp files
 tmpclaude-*
+
+# Mopar scraper
+mopar-scraper/.env
+mopar-scraper/data/progress.db
+mopar-scraper/data/images/
+mopar-scraper/data/output/

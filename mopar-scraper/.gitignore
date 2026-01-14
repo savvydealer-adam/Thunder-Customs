@@ -1,0 +1,6 @@
+node_modules/
+data/images/
+data/output/
+data/progress.db
+.env
+*.log
