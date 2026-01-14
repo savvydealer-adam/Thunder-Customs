@@ -951,6 +951,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       const { status, assignedTo, notes, cartItems, cartTotal, itemCount } = req.body;
       
+      // Check if user is trying to modify order items (requires admin/manager)
+      const isModifyingItems = cartItems !== undefined || cartTotal !== undefined || itemCount !== undefined;
+      if (isModifyingItems) {
+        const user = req.user as any;
+        if (!user?.claims?.sub) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const dbUser = await storage.getUser(user.claims.sub);
+        if (!dbUser || (dbUser.role !== 'admin' && dbUser.role !== 'manager')) {
+          return res.status(403).json({ error: "Only managers and admins can edit order items" });
+        }
+      }
+      
       const updateData: any = {};
       
       if (status) {
@@ -969,7 +982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.notes = notes;
       }
       
-      // Support updating order items (for staff editing orders)
+      // Support updating order items (for admin/manager editing orders)
       if (cartItems !== undefined) {
         updateData.cartItems = cartItems;
       }

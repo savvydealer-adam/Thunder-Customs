@@ -51,7 +51,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { isAuthenticated, isLoading: isAuthLoading, user, isStaff } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user, isStaff, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { items: cartItems, clearCart } = useCart();
@@ -511,7 +511,7 @@ export default function Orders() {
                   </div>
                   
                   {createOrderItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mb-3">No items yet. Add products from catalog or custom items below.</p>
+                    <p className="text-sm text-muted-foreground mb-3">No items yet. Add products from catalog{isAdmin && " or custom items"} below.</p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
                       {createOrderItems.map((item, idx) => (
@@ -520,40 +520,51 @@ export default function Orders() {
                             <p className="font-medium truncate">{item.product.partName}</p>
                             <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
                           </div>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={(e) => updateCreateItemQuantity(idx, parseInt(e.target.value) || 1)}
-                            className="w-16 h-8 text-center"
-                            data-testid={`input-create-qty-${idx}`}
-                          />
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs">$</span>
-                            <Input
-                              type="text"
-                              value={item.product.price}
-                              onChange={(e) => updateCreateItemPrice(idx, e.target.value)}
-                              placeholder="0.00"
-                              className="w-20 h-8"
-                              data-testid={`input-create-price-${idx}`}
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => removeCreateItem(idx)}
-                            data-testid={`button-remove-create-item-${idx}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {isAdmin ? (
+                            <>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={item.quantity}
+                                onChange={(e) => updateCreateItemQuantity(idx, parseInt(e.target.value) || 1)}
+                                className="w-16 h-8 text-center"
+                                data-testid={`input-create-qty-${idx}`}
+                              />
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs">$</span>
+                                <Input
+                                  type="text"
+                                  value={item.product.price}
+                                  onChange={(e) => updateCreateItemPrice(idx, e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-20 h-8"
+                                  data-testid={`input-create-price-${idx}`}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => removeCreateItem(idx)}
+                                data-testid={`button-remove-create-item-${idx}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="text-right">
+                              <span className="text-sm">x{item.quantity}</span>
+                              {item.product.price && (
+                                <span className="text-sm text-muted-foreground ml-2">${item.product.price}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {showCreateAddItem ? (
+                  {isAdmin && showCreateAddItem ? (
                     <div className="space-y-2 border-t pt-3">
                       <p className="text-sm font-medium">Add Custom Product</p>
                       <Input
@@ -607,20 +618,22 @@ export default function Orders() {
                     </div>
                   ) : (
                     <div className="flex gap-2 border-t pt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setShowCreateAddItem(true)}
-                        data-testid="button-show-create-add-item"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Custom Product
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setShowCreateAddItem(true)}
+                          data-testid="button-show-create-add-item"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Custom Product
+                        </Button>
+                      )}
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="flex-1"
+                        className={isAdmin ? "flex-1" : "w-full"}
                         onClick={() => {
                           setCreateDialogOpen(false);
                           window.location.href = "/products";
@@ -840,7 +853,7 @@ export default function Orders() {
                             <span className="font-semibold text-lg">${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
                           )
                         )}
-                        {!isEditing && (
+                        {!isEditing && isAdmin && (
                           <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-order">
                             <Pencil className="h-4 w-4 mr-1" />
                             Edit
