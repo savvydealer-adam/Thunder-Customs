@@ -146,23 +146,15 @@ export async function setupAuth(app: Express) {
     });
   });
 
-  // Switch account - logs out current user at identity provider level and prompts for new login
+  // Switch account - fully logs out of Replit to allow choosing a different account
   app.get("/api/switch-account", (req, res) => {
-    const user = req.user as any;
-    const idToken = user?.id_token;
     req.logout(() => {
       req.session.destroy(async (err) => {
         res.clearCookie("connect.sid");
-        // Redirect to Replit's end session endpoint, then back to login
-        // This clears the SSO session at the identity provider level
-        const endSessionParams: any = {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}/api/login`,
-        };
-        if (idToken) {
-          endSessionParams.id_token_hint = idToken;
-        }
-        res.redirect(client.buildEndSessionUrl(config, endSessionParams).href);
+        // Redirect to Replit's main logout, which will clear their session cookies
+        // Then redirect back to our login page
+        const returnUrl = encodeURIComponent(`${req.protocol}://${req.hostname}/api/login`);
+        res.redirect(`https://replit.com/logout?goto=${returnUrl}`);
       });
     });
   });
