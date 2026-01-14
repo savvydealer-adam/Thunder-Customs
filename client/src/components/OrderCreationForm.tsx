@@ -343,50 +343,60 @@ export function OrderCreationForm() {
               {orderItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No items in order.</p>
               ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {orderItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-muted p-2 rounded text-sm">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate text-xs">{item.product.partName}</p>
-                        <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
-                      </div>
-                      {isAdmin ? (
-                        <>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={(e) => updateItemQuantity(idx, parseInt(e.target.value) || 1)}
-                            className="w-14 h-7 text-center text-xs"
-                            data-testid={`input-order-qty-${idx}`}
-                          />
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs">$</span>
-                            <Input
-                              type="text"
-                              value={item.product.price}
-                              onChange={(e) => updateItemPrice(idx, e.target.value)}
-                              placeholder="0.00"
-                              className="w-16 h-7 text-xs"
-                              data-testid={`input-order-price-${idx}`}
-                            />
-                          </div>
+                    <div key={idx} className="bg-muted p-3 rounded-md space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm leading-tight">{item.product.partName}</p>
+                          <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
+                        </div>
+                        {isAdmin && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
                             onClick={() => removeItem(idx)}
                             data-testid={`button-remove-order-item-${idx}`}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
-                        </>
+                        )}
+                      </div>
+                      {isAdmin ? (
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-xs text-muted-foreground">Qty:</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(e) => updateItemQuantity(idx, parseInt(e.target.value) || 1)}
+                              className="w-16 h-8 text-center"
+                              data-testid={`input-order-qty-${idx}`}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-xs text-muted-foreground">Price:</Label>
+                            <div className="flex items-center">
+                              <span className="text-sm mr-1">$</span>
+                              <Input
+                                type="text"
+                                value={item.product.price}
+                                onChange={(e) => updateItemPrice(idx, e.target.value)}
+                                placeholder="0.00"
+                                className="w-24 h-8"
+                                data-testid={`input-order-price-${idx}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-right text-xs">
-                          <span>x{item.quantity}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span>Qty: {item.quantity}</span>
                           {item.product.price && (
-                            <span className="text-muted-foreground ml-2">${item.product.price}</span>
+                            <span className="text-muted-foreground">${item.product.price}</span>
                           )}
                         </div>
                       )}
