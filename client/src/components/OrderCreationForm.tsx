@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileBox, CheckCircle, Loader2 } from "lucide-react";
+import { FileBox, CheckCircle, Loader2, Plus, Trash2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,11 +20,23 @@ interface OrderFormData {
   notes: string;
 }
 
+interface OrderItem {
+  product: {
+    id: number | null;
+    partNumber: string;
+    partName: string;
+    manufacturer: string;
+    category: string;
+    price: string;
+  };
+  quantity: number;
+}
+
 export function OrderCreationForm() {
   const [open, setOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { items, clearCart } = useCart();
-  const { isAuthenticated, user, isStaff } = useAuth();
+  const { isAuthenticated, user, isStaff, isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -34,6 +46,17 @@ export function OrderCreationForm() {
     customerPhone: "",
     vehicleInfo: "",
     notes: "",
+  });
+  
+  // State for editable order items (only for admins/managers)
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({
+    partName: "",
+    partNumber: "",
+    manufacturer: "",
+    price: "",
+    quantity: 1,
   });
 
   // Pre-fill form with user profile data if they're a customer placing their own order
@@ -49,10 +72,82 @@ export function OrderCreationForm() {
     }
   }, [user, isStaff]);
 
-  const cartTotal = items.reduce((sum, item) => {
-    const price = item.product.totalRetail || item.product.partMSRP || item.product.price;
-    return sum + (price ? parseFloat(price) * item.quantity : 0);
-  }, 0).toFixed(2);
+  // Initialize order items from cart when dialog opens
+  useEffect(() => {
+    if (open && items.length > 0) {
+      setOrderItems(items.map(item => ({
+        product: {
+          id: item.product.id,
+          partNumber: item.product.partNumber,
+          partName: item.product.partName,
+          manufacturer: item.product.manufacturer,
+          category: item.product.category,
+          price: String(item.product.totalRetail || item.product.partMSRP || item.product.price || ""),
+        },
+        quantity: item.quantity,
+      })));
+    }
+  }, [open, items]);
+
+  // Helper to parse price strings
+  const parsePrice = (priceStr: string | number | null | undefined): number => {
+    if (!priceStr) return 0;
+    const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Calculate total from orderItems (editable) instead of cart items
+  const calculateTotal = () => {
+    return orderItems.reduce((sum, item) => {
+      return sum + (parsePrice(item.product.price) * item.quantity);
+    }, 0).toFixed(2);
+  };
+
+  // Item editing functions (admin/manager only)
+  const updateItemQuantity = (index: number, quantity: number) => {
+    const updated = [...orderItems];
+    updated[index].quantity = Math.max(1, quantity);
+    setOrderItems(updated);
+  };
+
+  const updateItemPrice = (index: number, price: string) => {
+    const updated = [...orderItems];
+    updated[index].product = { ...updated[index].product, price };
+    setOrderItems(updated);
+  };
+
+  const removeItem = (index: number) => {
+    setOrderItems(orderItems.filter((_, i) => i !== index));
+  };
+
+  const addCustomItem = () => {
+    if (!newItem.partName.trim()) {
+      toast({
+        title: "Part Name Required",
+        description: "Please enter a part name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setOrderItems([...orderItems, {
+      product: {
+        id: null,
+        partNumber: newItem.partNumber.trim() || "CUSTOM",
+        partName: newItem.partName.trim(),
+        manufacturer: newItem.manufacturer.trim() || "Custom",
+        category: "Custom",
+        price: newItem.price,
+      },
+      quantity: newItem.quantity,
+    }]);
+
+    setNewItem({ partName: "", partNumber: "", manufacturer: "", price: "", quantity: 1 });
+    setShowAddItem(false);
+  };
+
+  const cartTotal = calculateTotal();
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -62,18 +157,19 @@ export function OrderCreationForm() {
         customerPhone: formData.customerPhone.trim() || null,
         vehicleInfo: formData.vehicleInfo.trim() || null,
         notes: formData.notes.trim() || null,
-        cartItems: items.map(item => ({
+        cartItems: orderItems.map(item => ({
           product: {
-            id: item.product.id,
+            id: item.product.id || null,
             partNumber: item.product.partNumber,
             partName: item.product.partName,
             manufacturer: item.product.manufacturer,
             category: item.product.category,
-            price: item.product.totalRetail || item.product.partMSRP || item.product.price || null,
+            price: item.product.price ? String(item.product.price) : null,
           },
           quantity: item.quantity,
         })),
         cartTotal,
+        itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
       });
     },
     onSuccess: () => {
@@ -101,6 +197,14 @@ export function OrderCreationForm() {
       toast({
         title: "Customer Name Required",
         description: "Please enter the customer's name.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (orderItems.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Add at least one item to the order.",
         variant: "destructive",
       });
       return;
@@ -229,14 +333,140 @@ export function OrderCreationForm() {
               />
             </div>
 
-            <Alert>
-              <AlertDescription>
-                <div className="flex justify-between">
-                  <span>Order includes {items.length} item(s)</span>
-                  <span className="font-semibold">${cartTotal}</span>
+            {/* Order Items Section */}
+            <div className="border rounded-md p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-sm">Order Items ({orderItems.length})</span>
+                <span className="font-semibold">${cartTotal}</span>
+              </div>
+              
+              {orderItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No items in order.</p>
+              ) : (
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {orderItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-muted p-2 rounded text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-xs">{item.product.partName}</p>
+                        <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
+                      </div>
+                      {isAdmin ? (
+                        <>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => updateItemQuantity(idx, parseInt(e.target.value) || 1)}
+                            className="w-14 h-7 text-center text-xs"
+                            data-testid={`input-order-qty-${idx}`}
+                          />
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs">$</span>
+                            <Input
+                              type="text"
+                              value={item.product.price}
+                              onChange={(e) => updateItemPrice(idx, e.target.value)}
+                              placeholder="0.00"
+                              className="w-16 h-7 text-xs"
+                              data-testid={`input-order-price-${idx}`}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => removeItem(idx)}
+                            data-testid={`button-remove-order-item-${idx}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="text-right text-xs">
+                          <span>x{item.quantity}</span>
+                          {item.product.price && (
+                            <span className="text-muted-foreground ml-2">${item.product.price}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </AlertDescription>
-            </Alert>
+              )}
+
+              {isAdmin && (
+                showAddItem ? (
+                  <div className="space-y-2 border-t pt-2">
+                    <p className="text-xs font-medium">Add Custom Product</p>
+                    <Input
+                      placeholder="Part Name *"
+                      value={newItem.partName}
+                      onChange={(e) => setNewItem({ ...newItem, partName: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-custom-part-name"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Part Number"
+                        value={newItem.partNumber}
+                        onChange={(e) => setNewItem({ ...newItem, partNumber: e.target.value })}
+                        className="h-8 text-sm"
+                        data-testid="input-custom-part-number"
+                      />
+                      <Input
+                        placeholder="Manufacturer"
+                        value={newItem.manufacturer}
+                        onChange={(e) => setNewItem({ ...newItem, manufacturer: e.target.value })}
+                        className="h-8 text-sm"
+                        data-testid="input-custom-manufacturer"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-sm">$</span>
+                        <Input
+                          placeholder="Price"
+                          value={newItem.price}
+                          onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                          className="h-8 text-sm"
+                          data-testid="input-custom-price"
+                        />
+                      </div>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Qty"
+                        value={newItem.quantity}
+                        onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 1 })}
+                        className="w-16 h-8 text-sm"
+                        data-testid="input-custom-qty"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={addCustomItem} data-testid="button-add-custom-item">
+                        Add
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setShowAddItem(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowAddItem(true)}
+                    data-testid="button-show-add-custom"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Custom Product
+                  </Button>
+                )
+              )}
+            </div>
 
             <div className="flex gap-3 pt-2">
               <Button 
