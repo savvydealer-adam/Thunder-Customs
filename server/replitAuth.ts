@@ -48,6 +48,7 @@ function updateUserSession(
   user.claims = tokens.claims();
   user.access_token = tokens.access_token;
   user.refresh_token = tokens.refresh_token;
+  user.id_token = tokens.id_token;
   user.expires_at = user.claims?.exp;
 }
 
@@ -128,31 +129,40 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
+    const user = req.user as any;
+    const idToken = user?.id_token;
     req.logout(() => {
       req.session.destroy((err) => {
         res.clearCookie("connect.sid");
-        res.redirect(
-          client.buildEndSessionUrl(config, {
-            client_id: process.env.REPL_ID!,
-            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-          }).href
-        );
+        const endSessionParams: any = {
+          client_id: process.env.REPL_ID!,
+          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+        };
+        if (idToken) {
+          endSessionParams.id_token_hint = idToken;
+        }
+        res.redirect(client.buildEndSessionUrl(config, endSessionParams).href);
       });
     });
   });
 
   // Switch account - logs out current user at identity provider level and prompts for new login
   app.get("/api/switch-account", (req, res) => {
+    const user = req.user as any;
+    const idToken = user?.id_token;
     req.logout(() => {
       req.session.destroy(async (err) => {
+        res.clearCookie("connect.sid");
         // Redirect to Replit's end session endpoint, then back to login
         // This clears the SSO session at the identity provider level
-        res.redirect(
-          client.buildEndSessionUrl(config, {
-            client_id: process.env.REPL_ID!,
-            post_logout_redirect_uri: `${req.protocol}://${req.hostname}/api/login`,
-          }).href
-        );
+        const endSessionParams: any = {
+          client_id: process.env.REPL_ID!,
+          post_logout_redirect_uri: `${req.protocol}://${req.hostname}/api/login`,
+        };
+        if (idToken) {
+          endSessionParams.id_token_hint = idToken;
+        }
+        res.redirect(client.buildEndSessionUrl(config, endSessionParams).href);
       });
     });
   });
