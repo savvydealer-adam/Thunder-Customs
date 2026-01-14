@@ -139,6 +139,16 @@ export async function setupAuth(app: Express) {
       });
     });
   });
+
+  // Switch account - logs out current user and immediately prompts for new login
+  app.get("/api/switch-account", (req, res) => {
+    req.logout(() => {
+      // Clear the session and redirect to login
+      req.session.destroy((err) => {
+        res.redirect("/api/login");
+      });
+    });
+  });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {

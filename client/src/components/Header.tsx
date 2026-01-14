@@ -1,4 +1,4 @@
-import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield, ClipboardList, FileBox } from "lucide-react";
+import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield, ClipboardList, FileBox, UserPlus } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +189,12 @@ export function Header() {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <a href="/api/switch-account" className="w-full" data-testid="button-switch-account">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Switch Account
+                    </a>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a href="/api/logout" className="w-full" data-testid="button-logout">
                       <LogOut className="w-4 h-4 mr-2" />
