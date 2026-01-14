@@ -76,6 +76,16 @@ export default function Orders() {
     vehicleInfo: "",
     notes: "",
   });
+  // State for editing items in create order dialog
+  const [createOrderItems, setCreateOrderItems] = useState<any[]>([]);
+  const [showCreateAddItem, setShowCreateAddItem] = useState(false);
+  const [createNewItem, setCreateNewItem] = useState({
+    partName: "",
+    partNumber: "",
+    manufacturer: "",
+    price: "",
+    quantity: 1,
+  });
 
   const { data: orders, isLoading } = useQuery<Order[]>({
     queryKey: ['/api/orders', statusFilter, searchQuery],
@@ -162,6 +172,22 @@ export default function Orders() {
     },
   });
 
+  // Initialize createOrderItems when dialog opens
+  const openCreateDialog = () => {
+    setCreateOrderItems(cartItems.map(item => ({
+      product: {
+        id: item.product.id,
+        partNumber: item.product.partNumber,
+        partName: item.product.partName,
+        manufacturer: item.product.manufacturer,
+        category: item.product.category,
+        price: String(item.product.totalRetail || item.product.partMSRP || item.product.price || ""),
+      },
+      quantity: item.quantity,
+    })));
+    setCreateDialogOpen(true);
+  };
+
   const handleCreateOrder = () => {
     if (!newOrderData.customerName.trim()) {
       toast({
@@ -172,18 +198,25 @@ export default function Orders() {
       return;
     }
 
-    if (cartItems.length === 0) {
+    if (createOrderItems.length === 0) {
       toast({
-        title: "No Items in Cart",
-        description: "Add items to the cart before creating an order.",
+        title: "No Items",
+        description: "Add at least one item to the order.",
         variant: "destructive",
       });
       return;
     }
 
-    const cartTotal = cartItems.reduce((sum, item) => {
-      const price = item.product.totalRetail || item.product.partMSRP || item.product.price;
-      return sum + (price ? parseFloat(price) * item.quantity : 0);
+    const parsePrice = (priceStr: string | number | null | undefined): number => {
+      if (!priceStr) return 0;
+      const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const cartTotal = createOrderItems.reduce((sum, item) => {
+      const price = parsePrice(item.product.price);
+      return sum + (price * item.quantity);
     }, 0).toFixed(2);
 
     createOrderMutation.mutate({
@@ -192,19 +225,75 @@ export default function Orders() {
       customerPhone: newOrderData.customerPhone.trim() || null,
       vehicleInfo: newOrderData.vehicleInfo.trim() || null,
       notes: newOrderData.notes.trim() || null,
-      cartItems: cartItems.map(item => ({
+      cartItems: createOrderItems.map(item => ({
         product: {
-          id: item.product.id,
+          id: item.product.id || null,
           partNumber: item.product.partNumber,
           partName: item.product.partName,
           manufacturer: item.product.manufacturer,
-          category: item.product.category,
-          price: item.product.totalRetail || item.product.partMSRP || item.product.price || null,
+          category: item.product.category || "Custom",
+          price: item.product.price ? String(item.product.price) : null,
         },
         quantity: item.quantity,
       })),
       cartTotal,
+      itemCount: createOrderItems.reduce((sum, item) => sum + item.quantity, 0),
     });
+  };
+
+  // Functions for managing create order items
+  const updateCreateItemQuantity = (index: number, quantity: number) => {
+    const updated = [...createOrderItems];
+    updated[index].quantity = Math.max(1, quantity);
+    setCreateOrderItems(updated);
+  };
+
+  const updateCreateItemPrice = (index: number, price: string) => {
+    const updated = [...createOrderItems];
+    updated[index].product = { ...updated[index].product, price };
+    setCreateOrderItems(updated);
+  };
+
+  const removeCreateItem = (index: number) => {
+    setCreateOrderItems(createOrderItems.filter((_, i) => i !== index));
+  };
+
+  const addCreateCustomItem = () => {
+    if (!createNewItem.partName.trim()) {
+      toast({
+        title: "Part Name Required",
+        description: "Please enter a part name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreateOrderItems([...createOrderItems, {
+      product: {
+        id: null,
+        partNumber: createNewItem.partNumber.trim() || "CUSTOM",
+        partName: createNewItem.partName.trim(),
+        manufacturer: createNewItem.manufacturer.trim() || "Custom",
+        category: "Custom",
+        price: createNewItem.price,
+      },
+      quantity: createNewItem.quantity,
+    }]);
+
+    setCreateNewItem({ partName: "", partNumber: "", manufacturer: "", price: "", quantity: 1 });
+    setShowCreateAddItem(false);
+  };
+
+  const calculateCreateTotal = () => {
+    const parsePrice = (priceStr: string | number | null | undefined): number => {
+      if (!priceStr) return 0;
+      const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+    return createOrderItems.reduce((sum, item) => {
+      return sum + (parsePrice(item.product.price) * item.quantity);
+    }, 0).toFixed(2);
   };
 
   const getStatCount = (status: string) => {
@@ -341,13 +430,17 @@ export default function Orders() {
               Orders created on behalf of customers by sales staff
             </p>
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-order">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Order
-              </Button>
-            </DialogTrigger>
+          <Button onClick={openCreateDialog} data-testid="button-create-order">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Order
+            </Button>
+          <Dialog open={createDialogOpen} onOpenChange={(open) => {
+            if (!open) {
+              setShowCreateAddItem(false);
+              setCreateNewItem({ partName: "", partNumber: "", manufacturer: "", price: "", quantity: 1 });
+            }
+            setCreateDialogOpen(open);
+          }}>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Create New Order</DialogTitle>
@@ -408,42 +501,150 @@ export default function Orders() {
                   />
                 </div>
 
-                <div className="bg-muted p-3 rounded-md">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="border rounded-md p-3">
+                  <div className="flex items-center justify-between mb-3">
                     <span className="font-medium flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4" />
-                      Cart Items ({cartItems.length})
+                      Order Items ({createOrderItems.length})
                     </span>
-                    <Link href="/products" className="text-sm text-primary hover:underline">
-                      Browse Products
-                    </Link>
+                    <span className="font-semibold">${calculateCreateTotal()}</span>
                   </div>
-                  {cartItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No items in cart. Add products first.</p>
+                  
+                  {createOrderItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground mb-3">No items yet. Add products from catalog or custom items below.</p>
                   ) : (
-                    <div className="space-y-1 max-h-32 overflow-y-auto text-sm">
-                      {cartItems.map((item, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span>{item.product.partName}</span>
-                          <span>x{item.quantity}</span>
+                    <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
+                      {createOrderItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-muted p-2 rounded text-sm">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{item.product.partName}</p>
+                            <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
+                          </div>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => updateCreateItemQuantity(idx, parseInt(e.target.value) || 1)}
+                            className="w-16 h-8 text-center"
+                            data-testid={`input-create-qty-${idx}`}
+                          />
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs">$</span>
+                            <Input
+                              type="text"
+                              value={item.product.price}
+                              onChange={(e) => updateCreateItemPrice(idx, e.target.value)}
+                              placeholder="0.00"
+                              className="w-20 h-8"
+                              data-testid={`input-create-price-${idx}`}
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeCreateItem(idx)}
+                            data-testid={`button-remove-create-item-${idx}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {showCreateAddItem ? (
+                    <div className="space-y-2 border-t pt-3">
+                      <p className="text-sm font-medium">Add Custom Product</p>
+                      <Input
+                        placeholder="Part Name *"
+                        value={createNewItem.partName}
+                        onChange={(e) => setCreateNewItem({ ...createNewItem, partName: e.target.value })}
+                        data-testid="input-create-custom-name"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Part Number"
+                          value={createNewItem.partNumber}
+                          onChange={(e) => setCreateNewItem({ ...createNewItem, partNumber: e.target.value })}
+                          data-testid="input-create-custom-partnumber"
+                        />
+                        <Input
+                          placeholder="Manufacturer"
+                          value={createNewItem.manufacturer}
+                          onChange={(e) => setCreateNewItem({ ...createNewItem, manufacturer: e.target.value })}
+                          data-testid="input-create-custom-manufacturer"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex items-center gap-1 flex-1">
+                          <span className="text-sm">$</span>
+                          <Input
+                            placeholder="Price"
+                            value={createNewItem.price}
+                            onChange={(e) => setCreateNewItem({ ...createNewItem, price: e.target.value })}
+                            data-testid="input-create-custom-price"
+                          />
+                        </div>
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="Qty"
+                          value={createNewItem.quantity}
+                          onChange={(e) => setCreateNewItem({ ...createNewItem, quantity: parseInt(e.target.value) || 1 })}
+                          className="w-20"
+                          data-testid="input-create-custom-qty"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={addCreateCustomItem} data-testid="button-add-create-custom">
+                          Add Item
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setShowCreateAddItem(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 border-t pt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setShowCreateAddItem(true)}
+                        data-testid="button-show-create-add-item"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Custom Product
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => {
+                          setCreateDialogOpen(false);
+                          window.location.href = "/products";
+                        }}
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-1" />
+                        Browse Catalog
+                      </Button>
                     </div>
                   )}
                 </div>
 
                 <Button 
                   onClick={handleCreateOrder} 
-                  disabled={createOrderMutation.isPending || cartItems.length === 0}
+                  disabled={createOrderMutation.isPending || createOrderItems.length === 0}
                   className="w-full"
                   data-testid="button-submit-order"
                 >
                   {createOrderMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Save className="h-4 w-4 mr-2" />
                   )}
-                  Create Order
+                  Create Order ({createOrderItems.length} items)
                 </Button>
               </div>
             </DialogContent>
