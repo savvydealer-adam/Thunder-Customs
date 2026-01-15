@@ -98,7 +98,7 @@ export async function setupAuth(app: Express) {
         {
           name: strategyName,
           config,
-          scope: "openid email profile offline_access",
+          scope: "openid email profile",
           callbackURL: `https://${domain}/api/callback`,
         },
         verify,
@@ -116,7 +116,7 @@ export async function setupAuth(app: Express) {
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login",
       max_age: 0,
-      scope: ["openid", "email", "profile", "offline_access"],
+      scope: ["openid", "email", "profile"],
     })(req, res, next);
   });
 
