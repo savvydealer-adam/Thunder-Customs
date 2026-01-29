@@ -1,0 +1,66 @@
+name: Import Rough Country Feed
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (1 AM EST / 2 AM EDT)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no changes)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Import Rough Country Products
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          echo "Starting Rough Country feed import..."
+          echo "Dry run: $DRY_RUN"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.SITE_URL }}/api/admin/import-rough-country?dryRun=$DRY_RUN" \
+            -H "Authorization: Bearer ${{ secrets.IMPORT_API_KEY }}" \
+            -H "Content-Type: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Import failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+          # Parse and display results
+          echo ""
+          echo "=== Import Results ==="
+          echo "$BODY" | jq -r '.stats | "Total: \(.total)\nAdded: \(.added)\nUpdated: \(.updated)\nSkipped: \(.skipped)\nErrors: \(.errors)"'
+
+          # Check for errors
+          ERRORS=$(echo "$BODY" | jq -r '.stats.errors')
+          if [ "$ERRORS" -gt 100 ]; then
+            echo "Warning: Import had $ERRORS errors"
+            exit 1
+          fi
+
+          echo ""
+          echo "Import completed successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Rough Country import failed. Check the logs above for details."

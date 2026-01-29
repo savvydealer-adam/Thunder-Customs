@@ -9,6 +9,7 @@ import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireSt
 import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
+import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -1012,15 +1013,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const success = await storage.deleteOrder(id);
-      
+
       if (!success) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       res.json({ success: true, message: "Order deleted" });
     } catch (error) {
       console.error("Error deleting order:", error);
       res.status(500).json({ error: "Failed to delete order" });
+    }
+  });
+
+  // =============================================
+  // ROUGH COUNTRY FEED IMPORT
+  // =============================================
+
+  // Import Rough Country feed - admin only or API key auth
+  app.post("/api/admin/import-rough-country", async (req: any, res) => {
+    try {
+      // Check for API key auth (for GitHub Actions / cron)
+      const authHeader = req.headers.authorization;
+      const apiKey = process.env.IMPORT_API_KEY;
+
+      let authorized = false;
+
+      if (authHeader && authHeader.startsWith("Bearer ") && apiKey) {
+        const token = authHeader.substring(7);
+        if (token === apiKey) {
+          authorized = true;
+          console.log("[RC Import] Authorized via API key");
+        }
+      }
+
+      // Fall back to admin auth
+      if (!authorized) {
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const userId = req.user?.claims?.sub;
+        if (!userId) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const user = await storage.getUser(userId);
+        if (!user || user.role !== "admin") {
+          return res.status(403).json({ error: "Forbidden - Admin access required" });
+        }
+        authorized = true;
+        console.log("[RC Import] Authorized via admin auth");
+      }
+
+      if (!authorized) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const dryRun = req.query.dryRun === "true";
+      const limitParam = req.query.limit;
+      const limit = limitParam ? parseInt(limitParam as string, 10) : undefined;
+
+      console.log(`[RC Import] Starting import via API (dryRun: ${dryRun}, limit: ${limit || "none"})`);
+
+      const stats = await importRoughCountryFeed({
+        dryRun,
+        limit,
+        onProgress: (current, total) => {
+          if (current % 500 === 0) {
+            console.log(`[RC Import] Progress: ${current}/${total}`);
+          }
+        },
+      });
+
+      res.json({
+        success: true,
+        dryRun,
+        stats: {
+          total: stats.total,
+          added: stats.added,
+          updated: stats.updated,
+          skipped: stats.skipped,
+          errors: stats.errors,
+          errorMessages: stats.errorMessages.slice(0, 10),
+        },
+      });
+    } catch (error) {
+      console.error("[RC Import] API error:", error);
+      res.status(500).json({
+        error: "Failed to import Rough Country feed",
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   });
 
