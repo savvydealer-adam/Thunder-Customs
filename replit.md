@@ -58,6 +58,7 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 ### Form & Data Handling
 - **Zod**: Runtime schema validation.
 - **Multer**: Multipart/form-data handling for file uploads.
+- **ExcelJS**: Excel file parsing and generation (replaced xlsx library).
 
 ### Fonts & Assets
 - **Google Fonts**: DM Sans, Fira Code, Geist Mono, Architects Daughter.
