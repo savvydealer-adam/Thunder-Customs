@@ -177,7 +177,8 @@ export async function importRoughCountryFeed(
 
     for (let i = 0; i < processRows.length; i += batchSize) {
       const batch = processRows.slice(i, i + batchSize);
-      const productBatch: any[] = [];
+      // Use Map to deduplicate by partNumber within batch (last one wins)
+      const productMap = new Map<string, any>();
 
       for (const row of batch) {
         try {
@@ -196,7 +197,7 @@ export async function importRoughCountryFeed(
             description += (description ? "\n\n" : "") + "Features:\n" + String(row.features).trim();
           }
 
-          productBatch.push({
+          productMap.set(partNumber, {
             partNumber,
             partName: title,
             manufacturer: row.manufacturer ? String(row.manufacturer).trim() : "Rough Country",
@@ -222,6 +223,9 @@ export async function importRoughCountryFeed(
           }
         }
       }
+
+      // Convert Map to array (deduplicated)
+      const productBatch = Array.from(productMap.values());
 
       if (productBatch.length > 0) {
         if (dryRun) {
