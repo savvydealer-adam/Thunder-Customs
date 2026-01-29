@@ -9,7 +9,7 @@
  * ~7,910 products, ~14MB file
  */
 
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { db } from "../server/db";
 import { products } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
@@ -137,10 +137,35 @@ export async function fetchRoughCountryFeed(): Promise<RoughCountryRow[]> {
   const arrayBuffer = await response.arrayBuffer();
   console.log(`[RC Import] Downloaded ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
 
-  const workbook = XLSX.read(arrayBuffer, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<RoughCountryRow>(sheet);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(arrayBuffer));
+  
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) {
+    throw new Error("No worksheet found in workbook");
+  }
+
+  // Get headers from first row
+  const headers: string[] = [];
+  const headerRow = worksheet.getRow(1);
+  headerRow.eachCell((cell, colNumber) => {
+    headers[colNumber - 1] = String(cell.value || '').toLowerCase().trim();
+  });
+
+  // Parse rows into objects
+  const rows: RoughCountryRow[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // Skip header row
+    
+    const rowData: RoughCountryRow = {};
+    row.eachCell((cell, colNumber) => {
+      const header = headers[colNumber - 1];
+      if (header) {
+        rowData[header] = cell.value as any;
+      }
+    });
+    rows.push(rowData);
+  });
 
   console.log(`[RC Import] Parsed ${rows.length} rows from feed`);
   return rows;
