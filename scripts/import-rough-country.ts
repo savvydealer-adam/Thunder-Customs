@@ -124,6 +124,37 @@ function normalizePrice(value: unknown): string | null {
 }
 
 /**
+ * Extract primitive value from ExcelJS cell value
+ * ExcelJS can return objects for hyperlinks, rich text, etc.
+ */
+function extractCellValue(value: ExcelJS.CellValue): string | number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return typeof value === 'boolean' ? (value ? 1 : 0) : value;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  // Handle hyperlink objects
+  if (typeof value === 'object' && 'text' in value) {
+    return String((value as { text: string }).text || '');
+  }
+  // Handle rich text
+  if (typeof value === 'object' && 'richText' in value) {
+    const richText = (value as { richText: Array<{ text: string }> }).richText;
+    return richText.map(rt => rt.text).join('');
+  }
+  // Handle formula results
+  if (typeof value === 'object' && 'result' in value) {
+    return extractCellValue((value as { result: ExcelJS.CellValue }).result);
+  }
+  // Fallback - try to get a string representation
+  return String(value);
+}
+
+/**
  * Fetch and parse the Rough Country XLSX feed
  */
 export async function fetchRoughCountryFeed(): Promise<RoughCountryRow[]> {
@@ -149,7 +180,8 @@ export async function fetchRoughCountryFeed(): Promise<RoughCountryRow[]> {
   const headers: string[] = [];
   const headerRow = worksheet.getRow(1);
   headerRow.eachCell((cell, colNumber) => {
-    headers[colNumber - 1] = String(cell.value || '').toLowerCase().trim();
+    const val = extractCellValue(cell.value);
+    headers[colNumber - 1] = String(val || '').toLowerCase().trim();
   });
 
   // Parse rows into objects
@@ -161,7 +193,7 @@ export async function fetchRoughCountryFeed(): Promise<RoughCountryRow[]> {
     row.eachCell((cell, colNumber) => {
       const header = headers[colNumber - 1];
       if (header) {
-        rowData[header] = cell.value as any;
+        rowData[header] = extractCellValue(cell.value) as any;
       }
     });
     rows.push(rowData);
