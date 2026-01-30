@@ -759,6 +759,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fix broken images (those with [object Object] or invalid URLs) using Google Image Search
+  app.post("/api/admin/fix-broken-images", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+      const GOOGLE_CSE_ID = process.env.GOOGLE_CSE_ID;
+
+      if (!GOOGLE_API_KEY || !GOOGLE_CSE_ID) {
+        return res.status(400).json({
+          error: "GOOGLE_API_KEY and GOOGLE_CSE_ID must be configured in environment variables"
+        });
+      }
+
+      const { db } = await import("./db");
+      const { products } = await import("@shared/schema");
+      const { eq, or, like } = await import("drizzle-orm");
+
+      // Find products with broken imageUrl
+      const brokenProducts = await db.select({
+        id: products.id,
+        partNumber: products.partNumber,
+        partName: products.partName,
+        manufacturer: products.manufacturer,
+        imageUrl: products.imageUrl,
+      })
+      .from(products)
+      .where(
+        or(
+          eq(products.imageUrl, '[object Object]'),
+          like(products.imageUrl, '%[object Object]%')
+        )
+      );
+
+      if (brokenProducts.length === 0) {
+        return res.json({ success: true, message: "No broken images found", fixed: 0, total: 0 });
+      }
+
+      const results: Array<{ partNumber: string; status: string; imageUrl?: string }> = [];
+      let fixed = 0;
+
+      for (const product of brokenProducts) {
+        try {
+          // Search Google Images
+          const searchQuery = `${product.manufacturer} ${product.partNumber} ${product.partName} product`.trim();
+          const url = new URL('https://www.googleapis.com/customsearch/v1');
+          url.searchParams.set('q', searchQuery);
+          url.searchParams.set('cx', GOOGLE_CSE_ID);
+          url.searchParams.set('key', GOOGLE_API_KEY);
+          url.searchParams.set('searchType', 'image');
+          url.searchParams.set('num', '5');
+          url.searchParams.set('imgType', 'photo');
+          url.searchParams.set('safe', 'active');
+
+          const response = await fetch(url.toString());
+          const data = await response.json();
+
+          if (data.items && data.items.length > 0) {
+            // Prefer official sources
+            let bestImage = data.items[0];
+            for (const item of data.items) {
+              if (item.link.includes('revolutionparts') ||
+                  item.link.includes('roughcountry') ||
+                  item.link.includes('cloudfront')) {
+                bestImage = item;
+                break;
+              }
+            }
+
+            const imageUrl = bestImage.link;
+            await storage.updateProductImage(product.id, imageUrl);
+            fixed++;
+            results.push({ partNumber: product.partNumber, status: 'fixed', imageUrl });
+          } else {
+            // No image found - set placeholder
+            const placeholderUrl = `https://placehold.co/600x400/1E90FF/FFFFFF?text=${encodeURIComponent(product.manufacturer.substring(0, 20))}%0A${encodeURIComponent(product.partName.substring(0, 25))}&font=raleway`;
+            await storage.updateProductImage(product.id, placeholderUrl);
+            results.push({ partNumber: product.partNumber, status: 'placeholder', imageUrl: placeholderUrl });
+          }
+
+          // Rate limit: wait 200ms between requests
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+          console.error(`Error fixing image for ${product.partNumber}:`, error);
+          results.push({ partNumber: product.partNumber, status: 'error' });
+        }
+      }
+
+      res.json({
+        success: true,
+        fixed,
+        total: brokenProducts.length,
+        results,
+      });
+    } catch (error) {
+      console.error("Error fixing broken images:", error);
+      res.status(500).json({ error: "Failed to fix broken images" });
+    }
+  });
+
   // User management routes (strict admin only - employee management)
   app.get("/api/users", isAuthenticated, requireStrictAdmin, async (_req, res) => {
     try {
