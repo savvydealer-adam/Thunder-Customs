@@ -1,60 +1,91 @@
 import { db } from "../server/db";
 import { products } from "../shared/schema";
-import { sql, isNull, not } from "drizzle-orm";
+import { sql, isNull, eq, and } from "drizzle-orm";
 import * as fs from "fs";
 import * as path from "path";
 
 async function fixImageUrls() {
   const imageDir = path.join(process.cwd(), "attached_assets/product_images");
-  const files = fs.readdirSync(imageDir).filter(f => f.startsWith("tc-"));
+  const allFiles = fs.readdirSync(imageDir);
   
-  const validPartNumbers = new Set<string>();
-  for (const file of files) {
-    const match = file.match(/^tc-(.+)\.(jpg|jpeg|png|webp)$/i);
+  // Build map of part number -> actual file path
+  const partNumberToFile = new Map<string, string>();
+  
+  for (const file of allFiles) {
+    // Handle tc-prefixed files: tc-{partNumber}.jpg
+    let match = file.match(/^tc-(.+)\.(jpg|jpeg|png|webp)$/i);
     if (match) {
-      validPartNumbers.add(match[1].toLowerCase());
-    }
-  }
-  
-  console.log(`Found ${validPartNumbers.size} image files`);
-  
-  const allProducts = await db.select({
-    id: products.id,
-    partNumber: products.partNumber,
-    imageUrl: products.imageUrl
-  }).from(products).where(not(isNull(products.imageUrl)));
-  
-  console.log(`Found ${allProducts.length} products with imageUrl set`);
-  
-  let cleared = 0;
-  const batchSize = 500;
-  const toClear: number[] = [];
-  
-  for (const product of allProducts) {
-    if (!product.partNumber) {
-      toClear.push(product.id);
+      partNumberToFile.set(match[1].toLowerCase(), `/attached_assets/product_images/${file}`);
       continue;
     }
     
-    const lowerPartNumber = product.partNumber.toLowerCase();
-    if (!validPartNumbers.has(lowerPartNumber)) {
-      toClear.push(product.id);
+    // Handle non-prefixed files: {partNumber}.jpg or {partNumber}.webp
+    match = file.match(/^([^.]+)\.(jpg|jpeg|png|webp)$/i);
+    if (match) {
+      const partNum = match[1].toLowerCase();
+      // Don't overwrite tc- prefixed files (they're the preferred format)
+      if (!partNumberToFile.has(partNum)) {
+        partNumberToFile.set(partNum, `/attached_assets/product_images/${file}`);
+      }
     }
   }
   
-  console.log(`Will clear ${toClear.length} products without matching image files`);
+  console.log(`Found ${partNumberToFile.size} unique part numbers with image files`);
   
-  for (let i = 0; i < toClear.length; i += batchSize) {
-    const batch = toClear.slice(i, i + batchSize);
-    const idList = batch.join(',');
-    await db.execute(sql.raw(`UPDATE products SET image_url = NULL WHERE id IN (${idList})`));
-    cleared += batch.length;
-    if (cleared % 1000 === 0) {
-      console.log(`Cleared ${cleared} / ${toClear.length}`);
+  // Get all CSV products (not Rough Country - they use CDN)
+  const csvProducts = await db.select({
+    id: products.id,
+    partNumber: products.partNumber,
+    imageUrl: products.imageUrl
+  }).from(products).where(eq(products.dataSource, 'csv'));
+  
+  console.log(`Found ${csvProducts.length} CSV products to check`);
+  
+  let updated = 0;
+  let cleared = 0;
+  const batchSize = 100;
+  
+  for (let i = 0; i < csvProducts.length; i += batchSize) {
+    const batch = csvProducts.slice(i, i + batchSize);
+    
+    for (const product of batch) {
+      if (!product.partNumber) continue;
+      
+      const lowerPartNumber = product.partNumber.toLowerCase();
+      const imagePath = partNumberToFile.get(lowerPartNumber);
+      
+      if (imagePath) {
+        // Has matching file - set the URL
+        if (product.imageUrl !== imagePath) {
+          await db.update(products)
+            .set({ imageUrl: imagePath })
+            .where(eq(products.id, product.id));
+          updated++;
+        }
+      } else {
+        // No matching file - clear URL if set
+        if (product.imageUrl) {
+          await db.update(products)
+            .set({ imageUrl: null })
+            .where(eq(products.id, product.id));
+          cleared++;
+        }
+      }
+    }
+    
+    if ((i + batchSize) % 1000 === 0 || i + batchSize >= csvProducts.length) {
+      console.log(`Processed ${Math.min(i + batchSize, csvProducts.length)} / ${csvProducts.length}`);
     }
   }
   
-  console.log(`Done. Cleared ${cleared} products, ${allProducts.length - cleared} products have valid images`);
+  console.log(`Done. Updated ${updated} products, cleared ${cleared} products`);
+  
+  // Count final stats
+  const withImages = await db.select({ 
+    count: sql<number>`count(*)` 
+  }).from(products).where(sql`image_url IS NOT NULL`);
+  
+  console.log(`Total products with images: ${withImages[0].count}`);
 }
 
 fixImageUrls().then(() => process.exit(0)).catch(e => {
