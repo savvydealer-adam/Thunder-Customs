@@ -132,6 +132,49 @@ export function extractPartNumbers(entries: SitemapEntry[]): string[] {
 }
 
 /**
+ * Scrape a category page to find individual product links
+ */
+async function scrapeProductsFromCategory(page: any, categoryUrl: string, debugAll = false): Promise<{products: string[], allLinks: string[]}> {
+  try {
+    await page.goto(categoryUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    await page.waitForTimeout(3000); // Wait for JS to fully load
+    
+    // Find all links on the page
+    const links = await page.evaluate(() => {
+      const anchors = document.querySelectorAll('a[href]');
+      const hrefs: string[] = [];
+      anchors.forEach((a: Element) => {
+        const href = (a as HTMLAnchorElement).href;
+        if (href && href.startsWith('http')) hrefs.push(href);
+      });
+      return hrefs;
+    });
+    
+    // Also look for product data in the page content - some sites use data attributes
+    const pageContent = await page.content();
+    
+    // Look for part number patterns in page HTML
+    const partPatterns = pageContent.match(/[0-9]{8,10}[A-Z]{0,2}/g) || [];
+    
+    // Filter for product-like URLs
+    const productLinks = links.filter((url: string) => {
+      return url.includes('/p/') || 
+             url.includes('/product/') ||
+             url.includes('/sku/') ||
+             /[0-9]{8,10}[A-Z]{0,2}/i.test(url);
+    });
+    
+    return {
+      products: [...new Set(productLinks)],
+      allLinks: [...new Set(links)]
+    };
+  } catch (error) {
+    console.error(`  Error scraping ${categoryUrl}: ${error}`);
+    return { products: [], allLinks: [] };
+  }
+}
+
+/**
  * Fetch a child sitemap by triggering browser download
  */
 async function fetchChildSitemapWithDownload(page: any, url: string): Promise<string> {
@@ -217,42 +260,62 @@ async function main() {
       }
     }
     
-    console.log(`\n[Sitemap] Total product URLs: ${allProductUrls.length}`);
+    console.log(`\n[Sitemap] Total category URLs: ${allProductUrls.length}`);
     
-    // Show sample URLs
-    console.log('\n[Sitemap] Sample product URLs:');
-    allProductUrls.slice(0, 10).forEach(entry => {
-      console.log(`  - ${entry.loc}`);
-    });
+    // Save category URLs for reference
+    const urlsPath = path.join(process.cwd(), 'data', 'mopar-category-urls.json');
+    fs.writeFileSync(urlsPath, JSON.stringify(allProductUrls.map(e => e.loc), null, 2));
+    console.log(`[Sitemap] Saved ${allProductUrls.length} category URLs to ${urlsPath}`);
     
-    // Extract part numbers from URLs
+    // Drill down into a few category pages to find actual product URLs
+    console.log('\n[Sitemap] Drilling down into sample category pages...');
+    const sampleCategories = allProductUrls.slice(0, 3);
+    const allProductLinks: string[] = [];
+    const debugAllLinks: string[] = [];
+    
+    for (const category of sampleCategories) {
+      console.log(`\n[Sitemap] Scraping: ${category.loc}`);
+      const { products, allLinks } = await scrapeProductsFromCategory(page, category.loc);
+      console.log(`  -> Found ${products.length} product links, ${allLinks.length} total links`);
+      
+      // Show all unique links for debugging
+      console.log('  All unique links:');
+      allLinks.slice(0, 15).forEach(link => console.log(`    - ${link}`));
+      
+      if (products.length > 0) {
+        console.log('  Product links:');
+        products.slice(0, 5).forEach(link => console.log(`    - ${link}`));
+        allProductLinks.push(...products);
+      }
+      debugAllLinks.push(...allLinks);
+    }
+    
+    // Save all links for analysis
+    const allLinksPath = path.join(process.cwd(), 'data', 'mopar-debug-links.json');
+    fs.writeFileSync(allLinksPath, JSON.stringify([...new Set(debugAllLinks)], null, 2));
+    console.log(`\n[Debug] Saved ${new Set(debugAllLinks).size} unique links to ${allLinksPath}`);
+  
+    
+    console.log(`\n[Sitemap] Total product links from ${sampleCategories.length} categories: ${allProductLinks.length}`);
+    
+    // Extract part numbers from product links
     const partNumbers: string[] = [];
-    for (const entry of allProductUrls) {
-      // Pattern: /genuine-mopar-{partname}-{partnumber}.html
-      // or /mopar-{partnumber}.html
-      const match = entry.loc.match(/([A-Z0-9]{8,}[A-Z]{2})(?:\.html)?$/i);
+    for (const url of allProductLinks) {
+      // Pattern: /p/PARTNUMBER or similar
+      const match = url.match(/\/p\/([A-Z0-9-]+)/i) || 
+                   url.match(/\/([0-9]{7,10}[A-Z]{0,2})(?:[\/\?]|$)/i);
       if (match) {
         partNumbers.push(match[1].toUpperCase());
       }
     }
     
-    console.log(`\n[Sitemap] Extracted ${partNumbers.length} part numbers`);
-    
     if (partNumbers.length > 0) {
-      console.log('\n[Sitemap] Sample part numbers:');
-      partNumbers.slice(0, 20).forEach(pn => {
-        console.log(`  - ${pn}`);
-      });
+      console.log(`\n[Sitemap] Extracted ${partNumbers.length} part numbers:`);
+      partNumbers.slice(0, 20).forEach(pn => console.log(`  - ${pn}`));
       
-      // Save part numbers to file
       const pnPath = path.join(process.cwd(), 'data', 'mopar-part-numbers.json');
-      fs.writeFileSync(pnPath, JSON.stringify(partNumbers, null, 2));
-      console.log(`\n[Sitemap] Saved ${partNumbers.length} part numbers to ${pnPath}`);
-      
-      // Save all URLs for reference
-      const urlsPath = path.join(process.cwd(), 'data', 'mopar-product-urls.json');
-      fs.writeFileSync(urlsPath, JSON.stringify(allProductUrls.map(e => e.loc), null, 2));
-      console.log(`[Sitemap] Saved ${allProductUrls.length} URLs to ${urlsPath}`);
+      fs.writeFileSync(pnPath, JSON.stringify([...new Set(partNumbers)], null, 2));
+      console.log(`\n[Sitemap] Saved part numbers to ${pnPath}`);
     }
     
   } catch (error) {
