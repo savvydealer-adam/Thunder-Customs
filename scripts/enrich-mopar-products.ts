@@ -9,8 +9,26 @@ const stealth = StealthPlugin();
 puppeteer.use(stealth);
 
 const PROGRESS_FILE = './data/enrich-progress.json';
+const URLS_FILE = './data/mopar-product-urls.json';
 const RATE_LIMIT_DELAY = 2000; // 2 seconds between requests to avoid blocking
 const BATCH_SIZE = 50;
+
+// Build a lookup from part number to URL
+function buildUrlLookup(): Map<string, string> {
+  const lookup = new Map<string, string>();
+  if (fs.existsSync(URLS_FILE)) {
+    const urls: string[] = JSON.parse(fs.readFileSync(URLS_FILE, 'utf-8'));
+    for (const url of urls) {
+      // Extract part number from URL (last segment after the last dash, uppercase)
+      const match = url.match(/-([a-z0-9]+)$/i);
+      if (match) {
+        lookup.set(match[1].toUpperCase(), url);
+      }
+    }
+    console.log(`[Enrich] Loaded ${lookup.size} URL mappings`);
+  }
+  return lookup;
+}
 
 interface Progress {
   totalProcessed: number;
@@ -97,8 +115,7 @@ async function dismissPopup(page: Page) {
   }
 }
 
-async function scrapeProductPage(page: Page, partNumber: string): Promise<ProductData | null> {
-  const url = `https://www.moparsupply.com/oem-parts/mopar-${partNumber.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+async function scrapeProductPage(page: Page, partNumber: string, url: string): Promise<ProductData | null> {
   
   try {
     const response = await page.goto(url, { 
@@ -124,31 +141,62 @@ async function scrapeProductPage(page: Page, partNumber: string): Promise<Produc
     await dismissPopup(page);
     await new Promise(r => setTimeout(r, 1000));
 
-    const data = await page.evaluate(() => {
+    const data = await page.evaluate((partNum: string) => {
       // Check availability
       const unavailableEl = document.querySelector('[class*="unavailable"], [class*="Unavailable"]');
       const available = !unavailableEl || !unavailableEl.textContent?.includes('Unavailable');
 
-      // Get price - look for actual price values
+      // Get price - find JSON data that contains the specific product SKU
       let price: number | null = null;
-      const priceText = document.body.innerHTML;
+      let msrp: number | null = null;
+      const pageHtml = document.body.innerHTML;
       
-      // Try to find price in data attributes or structured data
-      const priceMatch = priceText.match(/"price":\s*"?([\d.]+)"?/);
-      if (priceMatch) {
-        price = parseFloat(priceMatch[1]);
+      // Look for the product's SKU in the JSON data and extract its price
+      // The SKU should be nearby in the JSON object
+      const skuLower = partNum.toLowerCase();
+      
+      // Try to find a JSON block containing this part number
+      const regex = new RegExp(`"sku"\\s*:\\s*"[^"]*${skuLower}[^"]*"[^}]*"price"\\s*:\\s*(\\d+(?:\\.\\d{2})?)`, 'i');
+      const skuPriceMatch = pageHtml.match(regex);
+      if (skuPriceMatch) {
+        price = parseFloat(skuPriceMatch[1]);
       }
       
-      // Also check visible price elements
-      const priceEls = document.querySelectorAll('[class*="price"], [class*="Price"]');
-      for (let i = 0; i < priceEls.length; i++) {
-        const text = priceEls[i].textContent || '';
-        const match = text.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
-        if (match) {
-          const parsed = parseFloat(match[1].replace(',', ''));
-          if (parsed > 0 && parsed < 100000) {
-            price = parsed;
-            break;
+      // Also try the reverse order (price before sku)
+      if (!price) {
+        const regex2 = new RegExp(`"price"\\s*:\\s*(\\d+(?:\\.\\d{2})?)[^}]*"sku"\\s*:\\s*"[^"]*${skuLower}`, 'i');
+        const match2 = pageHtml.match(regex2);
+        if (match2) {
+          price = parseFloat(match2[1]);
+        }
+      }
+      
+      // Try to find price near sku_stripped field
+      if (!price) {
+        const regex3 = new RegExp(`"sku_stripped"\\s*:\\s*"${skuLower}"[^}]*"price"\\s*:\\s*(\\d+(?:\\.\\d{2})?)`, 'i');
+        const match3 = pageHtml.match(regex3);
+        if (match3) {
+          price = parseFloat(match3[1]);
+        }
+      }
+      
+      // Also look for product_detail or pdp context
+      if (!price) {
+        const pdpMatch = pageHtml.match(/product_detail[^}]{0,500}"price"\s*:\s*(\d+(?:\.\d{2})?)/i);
+        if (pdpMatch) {
+          price = parseFloat(pdpMatch[1]);
+        }
+      }
+      
+      // Fallback: get the first price that's NOT in "Featured Products"
+      if (!price) {
+        // Find all prices that appear AFTER the product's SKU in the HTML
+        const skuIdx = pageHtml.toLowerCase().indexOf(skuLower);
+        if (skuIdx > -1) {
+          const afterSku = pageHtml.substring(skuIdx);
+          const priceMatch = afterSku.match(/"price"\s*:\s*(\d+(?:\.\d{2})?)/);
+          if (priceMatch) {
+            price = parseFloat(priceMatch[1]);
           }
         }
       }
@@ -182,7 +230,7 @@ async function scrapeProductPage(page: Page, partNumber: string): Promise<Produc
       }
 
       return { price, imageUrl, description, available };
-    });
+    }, partNumber);
 
     return data;
   } catch (error: any) {
@@ -234,6 +282,9 @@ async function main() {
     return;
   }
 
+  // Build URL lookup from our data file
+  const urlLookup = buildUrlLookup();
+
   const browser = await setupBrowser();
   const page = await setupPage(browser);
 
@@ -250,9 +301,18 @@ async function main() {
     const product = productsToEnrich[i];
     const pct = ((i + 1) / productsToEnrich.length * 100).toFixed(1);
     
+    // Get URL from lookup
+    const productUrl = urlLookup.get(product.partNumber);
+    if (!productUrl) {
+      process.stdout.write(`[${pct}%] ${product.partNumber} - no URL found\n`);
+      progress.totalFailed++;
+      progress.totalProcessed++;
+      continue;
+    }
+    
     process.stdout.write(`[${pct}%] ${product.partNumber} - `);
     
-    const data = await scrapeProductPage(page, product.partNumber);
+    const data = await scrapeProductPage(page, product.partNumber, productUrl);
     
     if (data) {
       // Update product in database

@@ -1,10 +1,10 @@
 {
-  "totalProcessed": 10,
-  "totalEnriched": 10,
-  "totalNoImage": 10,
+  "totalProcessed": 601,
+  "totalEnriched": 601,
+  "totalNoImage": 601,
   "totalUnavailable": 0,
   "totalFailed": 0,
-  "lastPartNumber": "4671945AB",
+  "lastPartNumber": "4724623AC",
   "startedAt": "2026-02-03T17:57:44.336Z",
-  "lastUpdatedAt": "2026-02-03T17:59:09.204Z"
+  "lastUpdatedAt": "2026-02-03T21:07:51.191Z"
 }
