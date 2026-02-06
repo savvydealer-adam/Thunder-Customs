@@ -201,22 +201,36 @@ async function scrapeProductPage(page: Page, partNumber: string, url: string): P
         }
       }
 
-      // Get image - look for actual product image, not placeholder
+      // Get image - look for actual product catalog images on RevolutionParts CDN
       let imageUrl: string | null = null;
-      const imgs = document.querySelectorAll('img');
-      for (let i = 0; i < imgs.length; i++) {
-        const src = imgs[i].src || '';
-        // Look for actual product images on CDN
-        if (src.includes('rfrk.com') && !src.includes('mopar.png') && !src.includes('placeholder')) {
-          imageUrl = src;
-          break;
+      
+      // Best: get high-res image from data-image-main-url on catalog thumbnails
+      const catalogThumbs = document.querySelectorAll('.product-secondary-image.type-catalog');
+      if (catalogThumbs.length > 0) {
+        const mainUrl = catalogThumbs[0].getAttribute('data-image-main-url');
+        if (mainUrl) {
+          imageUrl = mainUrl.startsWith('//') ? 'https:' + mainUrl : mainUrl;
         }
       }
       
-      // Check for "no image available"
-      const noImageText = document.body.textContent || '';
-      if (noImageText.toLowerCase().includes('no image available')) {
-        imageUrl = null;
+      // Fallback: check main product image if it's from product CDN (not illustrations)
+      if (!imageUrl) {
+        const mainImg = document.querySelector('.product-main-image-link img') as HTMLImageElement | null;
+        if (mainImg && mainImg.src && mainImg.src.includes('cdn-product-images.revolutionparts.io')) {
+          imageUrl = mainImg.src;
+        }
+      }
+      
+      // Final fallback: any img from the product images CDN
+      if (!imageUrl) {
+        const allImgs = document.querySelectorAll('img');
+        for (let i = 0; i < allImgs.length; i++) {
+          const src = allImgs[i].src || '';
+          if (src.includes('cdn-product-images.revolutionparts.io') && !src.includes('logo') && !src.includes('placeholder')) {
+            imageUrl = src;
+            break;
+          }
+        }
       }
 
       // Get description
@@ -321,20 +335,24 @@ async function main() {
       if (data.price && data.price > 0) {
         updates.partRetail = data.price.toString();
         updates.partMSRP = data.price.toString();
-        console.log(`$${data.price}`);
         progress.totalEnriched++;
-      } else if (!data.available) {
-        console.log('unavailable');
-        progress.totalUnavailable++;
-      } else {
-        console.log('no price');
       }
       
+      const hasImage = !!data.imageUrl;
       if (data.imageUrl) {
         updates.imageUrl = data.imageUrl;
         updates.imageSource = 'moparsupply';
       } else {
         progress.totalNoImage++;
+      }
+      
+      // Log price and image status on one line
+      const priceStr = data.price ? `$${data.price}` : (data.available ? 'no price' : 'unavailable');
+      const imgStr = hasImage ? ' [IMG]' : '';
+      console.log(`${priceStr}${imgStr}`);
+      
+      if (!data.available) {
+        progress.totalUnavailable++;
       }
       
       if (data.description) {
@@ -370,10 +388,12 @@ async function main() {
   saveProgress(progress);
 
   const elapsed = (Date.now() - startTime) / 1000 / 60;
+  const withImages = progress.totalProcessed - progress.totalNoImage - progress.totalFailed;
   console.log(`\n[Enrich] === COMPLETE ===`);
   console.log(`  Processed: ${progress.totalProcessed}`);
   console.log(`  Enriched (with price): ${progress.totalEnriched}`);
-  console.log(`  No image available: ${progress.totalNoImage}`);
+  console.log(`  With images: ${withImages}`);
+  console.log(`  No image: ${progress.totalNoImage}`);
   console.log(`  Unavailable: ${progress.totalUnavailable}`);
   console.log(`  Failed: ${progress.totalFailed}`);
   console.log(`  Time: ${elapsed.toFixed(1)} minutes`);
