@@ -36,7 +36,15 @@ The system uses Neon serverless PostgreSQL with Drizzle ORM for type-safe querie
 
 ### State Management
 
-Client-side state uses TanStack Query for server data (products, categories, filters) with a query key-based caching strategy. Local React state manages UI-specific elements. The shopping cart system is managed via React Context with localStorage persistence for anonymous users, supporting add, update, remove, and clear operations, and provides client-side PDF export and print-friendly cart pages.
+Client-side state uses TanStack Query for server data (products, categories, filters) with a query key-based caching strategy using object-form queryKeys (e.g., `['/api/products', {page, category, ...}]`) for proper cache invalidation. Local React state manages UI-specific elements. The shopping cart system is managed via React Context with user-scoped localStorage persistence (`cart_${userId}` for logged-in users, `cart_anonymous` for anonymous), supporting add, update, remove, and clear operations with cart merge on login. Provides client-side PDF export (with Price/Subtotal columns) and print-friendly cart pages.
+
+### Performance Optimizations (February 2026)
+
+- **Role caching**: User roles cached in session with 5-minute TTL (`cachedRole`/`cachedRoleAt` on session user object) to reduce DB queries in requireAdmin, requireStrictAdmin, requireStaff middleware
+- **DB upsert**: `upsertUser()` uses `onConflictDoUpdate` instead of SELECT-then-INSERT
+- **SQL safety**: `escapeLike()` helper escapes `%` and `_` wildcards in LIKE queries
+- **Image preservation**: Both Rough Country import and `createProducts()` use SQL CASE/COALESCE to preserve manually-uploaded images during bulk imports
+- **Pagination**: Leads and orders APIs support server-side pagination with `sql<number>\`count(*)::int\`` for counts, limit/offset for queries, returning `{items, total, page, pageSize, totalPages}`
 
 ## External Dependencies
 
