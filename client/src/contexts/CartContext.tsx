@@ -46,20 +46,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return;
         }
         
-        // Fetch fresh product data for each item
         const productIds = parsed.map(item => item.productId);
-        const freshProducts = await Promise.all(
-          productIds.map(async (id) => {
-            const res = await fetch(`/api/products/${id}`);
-            if (!res.ok) return null;
-            return res.json();
-          })
-        );
+        const res = await fetch('/api/products/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: productIds }),
+        });
         
-        // Build cart with fresh data, filtering out any products that no longer exist
+        if (!res.ok) throw new Error('Failed to fetch cart products');
+        const freshProducts: Product[] = await res.json();
+        
+        const productMap = new Map(freshProducts.map(p => [p.id, p]));
         const cartItems: CartItemWithProduct[] = parsed
-          .map((item, index) => {
-            const product = freshProducts[index];
+          .map(item => {
+            const product = productMap.get(item.productId);
             if (!product) return null;
             return { product, quantity: item.quantity };
           })

@@ -24,6 +24,7 @@ export interface ProductFilters {
 export interface IStorage {
   getProducts(filters?: ProductFilters): Promise<PaginatedProducts>;
   getProduct(id: number): Promise<Product | undefined>;
+  getProductsByIds(ids: number[]): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(products: InsertProduct[]): Promise<Product[]>;
   updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined>;
@@ -141,6 +142,11 @@ export class DatabaseStorage implements IStorage {
   async getProduct(id: number): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
     return product || undefined;
+  }
+
+  async getProductsByIds(ids: number[]): Promise<Product[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(products).where(inArray(products.id, ids));
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {

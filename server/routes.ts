@@ -124,6 +124,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/products/batch", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids must be a non-empty array" });
+      }
+      if (ids.length > 100) {
+        return res.status(400).json({ error: "Maximum 100 product IDs per request" });
+      }
+      const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+      const result = await storage.getProductsByIds(numericIds);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching products batch:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
   app.get("/api/categories", async (req, res) => {
     try {
       const categories = await storage.getCategories();
@@ -625,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/import-batch", isAuthenticated, requireAdmin, upload.array('files', 50), async (req, res) => {
+  app.post("/api/admin/import-batch", isAuthenticated, requireAdmin, uploadFile.array('files', 50), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       
