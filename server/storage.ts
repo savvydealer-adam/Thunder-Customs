@@ -299,11 +299,10 @@ export class DatabaseStorage implements IStorage {
   async updateUserProfile(id: string, data: { firstName?: string; lastName?: string; phone?: string; email?: string }): Promise<User | undefined> {
     const updateData: Record<string, any> = { updatedAt: new Date() };
     
-    // Only update fields with non-empty values to prevent overwriting with empty strings
-    if (data.firstName && data.firstName.trim()) updateData.firstName = data.firstName.trim();
-    if (data.lastName && data.lastName.trim()) updateData.lastName = data.lastName.trim();
-    if (data.phone && data.phone.trim()) updateData.phone = data.phone.trim();
-    if (data.email && data.email.trim()) updateData.email = data.email.trim();
+    if (data.firstName !== undefined) updateData.firstName = data.firstName?.trim() || null;
+    if (data.lastName !== undefined) updateData.lastName = data.lastName?.trim() || null;
+    if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
+    if (data.email !== undefined) updateData.email = data.email?.trim() || null;
     
     const [updated] = await db
       .update(users)
