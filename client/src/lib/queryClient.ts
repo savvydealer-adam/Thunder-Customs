@@ -7,19 +7,66 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+let csrfToken: string | null = null;
+
+async function ensureCsrfToken(): Promise<string> {
+  if (csrfToken) return csrfToken;
+  const res = await fetch('/api/csrf-token', { credentials: 'include' });
+  if (res.ok) {
+    const data = await res.json();
+    csrfToken = data.csrfToken;
+    return csrfToken!;
+  }
+  return '';
+}
+
+export function clearCsrfToken() {
+  csrfToken = null;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<any> {
   const isFormData = data instanceof FormData;
+  const headers: Record<string, string> = {};
+  
+  if (!isFormData && data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
+    const token = await ensureCsrfToken();
+    if (token) {
+      headers["x-csrf-token"] = token;
+    }
+  }
   
   const res = await fetch(url, {
     method,
-    headers: isFormData ? {} : (data ? { "Content-Type": "application/json" } : {}),
+    headers,
     body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
+
+  if (res.status === 403) {
+    const text = await res.text();
+    if (text.includes('csrf') || text.includes('CSRF')) {
+      csrfToken = null;
+      const retryToken = await ensureCsrfToken();
+      headers["x-csrf-token"] = retryToken;
+      const retry = await fetch(url, {
+        method,
+        headers,
+        body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
+        credentials: "include",
+      });
+      await throwIfResNotOk(retry);
+      return retry.json();
+    }
+    throw new Error(`${res.status}: ${text}`);
+  }
 
   await throwIfResNotOk(res);
   return res.json();

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { Product } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface CartItemWithProduct {
   product: Product;
@@ -53,13 +54,7 @@ function mergeStoredItems(base: StoredCartItem[], additions: StoredCartItem[]): 
 async function fetchCartProducts(storedItems: StoredCartItem[]): Promise<CartItemWithProduct[]> {
   if (storedItems.length === 0) return [];
   const productIds = storedItems.map(item => item.productId);
-  const res = await fetch('/api/products/batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: productIds }),
-  });
-  if (!res.ok) throw new Error('Failed to fetch cart products');
-  const freshProducts: Product[] = await res.json();
+  const freshProducts: Product[] = await apiRequest('POST', '/api/products/batch', { ids: productIds });
   const productMap = new Map(freshProducts.map(p => [p.id, p]));
   return storedItems
     .map(item => {

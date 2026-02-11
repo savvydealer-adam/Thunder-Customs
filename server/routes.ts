@@ -1,5 +1,5 @@
 // Reference: blueprint:javascript_log_in_with_replit
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
@@ -11,21 +11,51 @@ import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
 import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
 import rateLimit from "express-rate-limit";
+import { doubleCsrf } from "csrf-csrf";
 
 const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-async function searchProductImage(partName: string, manufacturer: string): Promise<string | null> {
-  const manufacturerText = manufacturer.substring(0, 20);
-  const partText = partName.substring(0, 25);
-  const displayText = `${manufacturerText}+%0A${partText}`;
-  
-  return `https://placehold.co/600x400/1E90FF/FFFFFF?text=${displayText}&font=raleway`;
+function parseIdParam(raw: string): number | null {
+  const id = parseInt(raw, 10);
+  if (isNaN(id) || id < 0) return null;
+  return id;
 }
+
+const { doubleCsrfProtection, generateCsrfToken } = doubleCsrf({
+  getSecret: () => process.env.SESSION_SECRET || "csrf-fallback-secret",
+  cookieName: "__csrf",
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  },
+  getSessionIdentifier: () => "app",
+  getCsrfTokenFromRequest: (req: any) => req.headers["x-csrf-token"] as string,
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
+
+  // CSRF token endpoint - provides token for frontend to include in mutating requests
+  app.get('/api/csrf-token', (req: any, res) => {
+    const token = generateCsrfToken(req, res);
+    res.json({ csrfToken: token });
+  });
+
+  // Apply CSRF protection to all POST/PATCH/DELETE API routes
+  app.use('/api', (req: any, res: any, next: any) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      return next();
+    }
+    // Skip CSRF for auth callback (OIDC redirect)
+    if (req.path === '/callback' || req.path === '/login' || req.path === '/logout') {
+      return next();
+    }
+    doubleCsrfProtection(req, res, next);
+  });
 
   // Auth routes - returns envelope with user (null for unauthenticated)
   app.get('/api/auth/user', async (req: any, res) => {
@@ -121,7 +151,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/products/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const product = await storage.getProduct(id);
       
       if (!product) {
@@ -289,7 +320,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single lead with ADF download
   app.get("/api/leads/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const lead = await storage.getLead(id);
       
       if (!lead) {
@@ -306,7 +338,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Download ADF XML for a lead
   app.get("/api/leads/:id/adf", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const lead = await storage.getLead(id);
       
       if (!lead || !lead.adfXml) {
@@ -325,7 +358,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update lead - authenticated staff can update
   app.patch("/api/leads/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const { status, assignedTo, comments } = req.body;
       
       const updateData: any = {};
@@ -361,7 +395,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete lead - admin only
   app.delete("/api/leads/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const success = await storage.deleteLead(id);
       
       if (!success) {
@@ -775,11 +810,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const product of productsWithoutImages) {
         try {
-          const imageUrl = await searchProductImage(product.partName, product.manufacturer);
-          if (imageUrl) {
-            await storage.updateProductImage(product.id, imageUrl);
-            updated++;
-          }
+          const manufacturerText = (product.manufacturer || '').substring(0, 20);
+          const partText = (product.partName || '').substring(0, 25);
+          const displayText = `${manufacturerText}+%0A${partText}`;
+          const imageUrl = `https://placehold.co/600x400/1E90FF/FFFFFF?text=${displayText}&font=raleway`;
+          await storage.updateProductImage(product.id, imageUrl);
+          updated++;
         } catch (error) {
           console.error(`Error processing image for product ${product.id}:`, error);
         }
@@ -793,46 +829,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error populating placeholder images:", error);
       res.status(500).json({ error: "Failed to populate placeholder images" });
-    }
-  });
-
-  app.post("/api/admin/populate-images", isAuthenticated, requireAdmin, async (req: any, res) => {
-    try {
-      if (!process.env.UNSPLASH_ACCESS_KEY) {
-        return res.status(400).json({ 
-          error: "UNSPLASH_ACCESS_KEY not configured. Please add the API key to enable image sourcing." 
-        });
-      }
-
-      const productsWithoutImages = await storage.getProductsWithoutImages();
-      
-      let updated = 0;
-      let errors = 0;
-      
-      for (const product of productsWithoutImages) {
-        try {
-          const imageUrl = await searchProductImage(product.partName, product.manufacturer);
-          if (imageUrl) {
-            await storage.updateProductImage(product.id, imageUrl);
-            updated++;
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error(`Error processing image for product ${product.id}:`, error);
-          errors++;
-        }
-      }
-      
-      res.json({
-        success: true,
-        updated,
-        total: productsWithoutImages.length,
-        errors,
-      });
-    } catch (error) {
-      console.error("Error populating images:", error);
-      res.status(500).json({ error: "Failed to populate images" });
     }
   });
 
@@ -1109,7 +1105,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single order
   app.get("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const order = await storage.getOrder(id);
       
       if (!order) {
@@ -1126,7 +1123,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update order
   app.patch("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const { status, assignedTo, notes, cartItems, cartTotal, itemCount } = req.body;
       
       // Check if user is trying to modify order items (requires admin/manager)
@@ -1188,7 +1186,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete order - admin/manager only
   app.delete("/api/orders/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
       const success = await storage.deleteOrder(id);
 
       if (!success) {

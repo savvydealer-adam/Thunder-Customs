@@ -210,11 +210,12 @@ export class DatabaseStorage implements IStorage {
           retailInstallation: sql`excluded.retail_installation`,
           totalRetail: sql`excluded.total_retail`,
           
-          imageUrl: sql`CASE WHEN excluded.image_url IS NOT NULL AND excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END`,
+          imageUrl: sql`CASE WHEN products.manually_edited THEN products.image_url WHEN excluded.image_url IS NOT NULL AND excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END`,
+          description: sql`CASE WHEN products.manually_edited THEN products.description ELSE excluded.description END`,
+          isHidden: sql`CASE WHEN products.manually_edited THEN products.is_hidden ELSE excluded.is_hidden END`,
+          isPopular: sql`CASE WHEN products.manually_edited THEN products.is_popular ELSE excluded.is_popular END`,
           stockQuantity: sql`excluded.stock_quantity`,
           dataSource: sql`excluded.data_source`,
-          isHidden: sql`excluded.is_hidden`,
-          isPopular: sql`excluded.is_popular`,
           updatedAt: new Date(),
         }
       })
@@ -333,7 +334,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (filters?.search) {
-      const searchTerm = `%${filters.search}%`;
+      const escapeLike = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const searchTerm = `%${escapeLike(filters.search)}%`;
       conditions.push(
         or(
           ilike(leads.firstName, searchTerm),
@@ -440,7 +442,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (filters?.search) {
-      const searchTerm = `%${filters.search}%`;
+      const escapeLike = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const searchTerm = `%${escapeLike(filters.search)}%`;
       conditions.push(
         or(
           ilike(orders.customerName, searchTerm),

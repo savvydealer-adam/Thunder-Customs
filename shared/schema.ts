@@ -42,6 +42,7 @@ export const products = pgTable("products", {
   dataSource: varchar("data_source", { length: 50 }).notNull().default('csv'),
   isHidden: boolean("is_hidden").notNull().default(false),
   isPopular: boolean("is_popular").notNull().default(false),
+  manuallyEdited: boolean("manually_edited").notNull().default(false),
   stockQuantity: integer("stock_quantity").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
