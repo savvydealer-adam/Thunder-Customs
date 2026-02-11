@@ -560,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload product image
+  // Upload product image (saved to disk, URL stored in database)
   app.post("/api/admin/products/:id/image", isAuthenticated, requireAdmin, upload.single('image'), async (req: any, res) => {
     try {
       const { id } = req.params;
@@ -569,12 +569,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image file uploaded" });
       }
 
-      // Convert the uploaded image to base64 data URL for storage
-      const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      const path = await import("path");
+      const fs = await import("fs");
       
-      const success = await storage.updateProductImage(parseInt(id), base64Image);
+      const uploadsDir = path.resolve(import.meta.dirname, '..', 'uploads', 'product-images');
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const filename = `product-${id}-${Date.now()}${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      
+      fs.writeFileSync(filePath, req.file.buffer);
+      
+      const imageUrl = `/uploads/product-images/${filename}`;
+      const success = await storage.updateProductImage(parseInt(id), imageUrl);
       
       if (!success) {
+        fs.unlinkSync(filePath);
         return res.status(404).json({ error: "Product not found" });
       }
       

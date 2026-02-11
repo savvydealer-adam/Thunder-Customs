@@ -8,6 +8,9 @@ const app = express();
 // Serve attached_assets as static files (product images, stock images, logos)
 app.use('/attached_assets', express.static(path.resolve(import.meta.dirname, '..', 'attached_assets')));
 
+// Serve uploaded product images
+app.use('/uploads', express.static(path.resolve(import.meta.dirname, '..', 'uploads')));
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
