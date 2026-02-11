@@ -121,24 +121,8 @@ export class DatabaseStorage implements IStorage {
     
     const total = countResult?.count || 0;
 
-    // Get paginated products with only essential fields for list view
     const productList = await db
-      .select({
-        id: products.id,
-        partNumber: products.partNumber,
-        partName: products.partName,
-        manufacturer: products.manufacturer,
-        category: products.category,
-        vehicleMake: products.vehicleMake,
-        vehicleModel: products.vehicleModel,
-        price: products.price,
-        partMSRP: products.partMSRP,
-        totalRetail: products.totalRetail,
-        imageUrl: products.imageUrl,
-        isPopular: products.isPopular,
-        isHidden: products.isHidden,
-        stockQuantity: products.stockQuantity,
-      })
+      .select()
       .from(products)
       .where(whereClause)
       .orderBy(products.partName)
@@ -146,7 +130,7 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
 
     return {
-      products: productList as Product[],
+      products: productList,
       total,
       page,
       pageSize,
