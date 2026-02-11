@@ -1,5 +1,14 @@
 import { Resend } from 'resend';
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 let resendClient: Resend | null = null;
 
 function getResendClient(): Resend | null {
@@ -54,9 +63,9 @@ export async function sendLeadNotification(data: LeadEmailData): Promise<boolean
   const htmlItemsList = data.cartItems
     .map(item => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.product.partNumber}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.product.partName}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.product.manufacturer}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(item.product.partNumber)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(item.product.partName)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(item.product.manufacturer)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
       </tr>
     `)
@@ -114,12 +123,12 @@ View and manage this lead in the Thunder Customs admin panel.
   <div class="content">
     <div class="section">
       <div class="section-title">Customer Information</div>
-      <div class="info-row"><span class="label">Name:</span> ${data.firstName} ${data.lastName}</div>
-      <div class="info-row"><span class="label">Email:</span> <a href="mailto:${data.email}">${data.email}</a></div>
-      <div class="info-row"><span class="label">Phone:</span> <a href="tel:${data.phone}">${data.phone}</a></div>
-      <div class="info-row"><span class="label">Preferred Contact:</span> ${data.preferredContact}</div>
-      ${data.vehicleInfo ? `<div class="info-row"><span class="label">Vehicle:</span> ${data.vehicleInfo}</div>` : ''}
-      ${data.comments ? `<div class="info-row"><span class="label">Comments:</span> ${data.comments}</div>` : ''}
+      <div class="info-row"><span class="label">Name:</span> ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}</div>
+      <div class="info-row"><span class="label">Email:</span> <a href="mailto:${escapeHtml(data.email)}">${escapeHtml(data.email)}</a></div>
+      <div class="info-row"><span class="label">Phone:</span> <a href="tel:${escapeHtml(data.phone)}">${escapeHtml(data.phone)}</a></div>
+      <div class="info-row"><span class="label">Preferred Contact:</span> ${escapeHtml(data.preferredContact)}</div>
+      ${data.vehicleInfo ? `<div class="info-row"><span class="label">Vehicle:</span> ${escapeHtml(data.vehicleInfo)}</div>` : ''}
+      ${data.comments ? `<div class="info-row"><span class="label">Comments:</span> ${escapeHtml(data.comments)}</div>` : ''}
     </div>
     
     <div class="section">
