@@ -19,6 +19,10 @@ const getOidcConfig = memoize(
   { maxAge: 3600 * 1000 }
 );
 
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required. Please set it in your Secrets.");
+}
+
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
