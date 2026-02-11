@@ -335,17 +335,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/database/export", isAuthenticated, requireStrictAdmin, async (req: any, res) => {
     try {
       const { db } = await import("./db");
-      const { products, leads } = await import("@shared/schema");
+      const { products, leads, orders } = await import("@shared/schema");
       
-      const [allProducts, allLeads] = await Promise.all([
+      const [allProducts, allLeads, allOrders] = await Promise.all([
         db.select().from(products),
         db.select().from(leads),
+        db.select().from(orders),
       ]);
       
       const exportData = {
         exportDate: new Date().toISOString(),
         products: allProducts,
         leads: allLeads,
+        orders: allOrders,
       };
       
       res.setHeader('Content-Type', 'application/json');
@@ -357,7 +359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Database import - restore products from JSON
+  // Database import - restore products from JSON (wrapped in transaction for safety)
   app.post("/api/admin/database/import", isAuthenticated, requireStrictAdmin, upload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) {
@@ -365,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { db } = await import("./db");
-      const { products, leads } = await import("@shared/schema");
+      const { products, leads, orders } = await import("@shared/schema");
       const { sql } = await import("drizzle-orm");
       
       const fileContent = req.file.buffer.toString('utf-8');
@@ -375,50 +377,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid backup file format" });
       }
       
-      // Clear existing products and insert from backup
-      await db.execute(sql`TRUNCATE TABLE products RESTART IDENTITY CASCADE`);
-      
-      let importedProducts = 0;
       const batchSize = 100;
       
-      for (let i = 0; i < importData.products.length; i += batchSize) {
-        const batch = importData.products.slice(i, i + batchSize);
-        // Remove id field so new ids are generated
-        const productsToInsert = batch.map((p: any) => {
-          const { id, ...productData } = p;
-          return productData;
-        });
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`TRUNCATE TABLE products RESTART IDENTITY CASCADE`);
         
-        if (productsToInsert.length > 0) {
-          await db.insert(products).values(productsToInsert);
-          importedProducts += productsToInsert.length;
-        }
-      }
-      
-      // Import leads if present
-      let importedLeads = 0;
-      if (importData.leads && Array.isArray(importData.leads)) {
-        await db.execute(sql`TRUNCATE TABLE leads RESTART IDENTITY CASCADE`);
-        
-        for (let i = 0; i < importData.leads.length; i += batchSize) {
-          const batch = importData.leads.slice(i, i + batchSize);
-          const leadsToInsert = batch.map((l: any) => {
-            const { id, ...leadData } = l;
-            return leadData;
+        let importedProducts = 0;
+        for (let i = 0; i < importData.products.length; i += batchSize) {
+          const batch = importData.products.slice(i, i + batchSize);
+          const productsToInsert = batch.map((p: any) => {
+            const { id, ...productData } = p;
+            return productData;
           });
           
-          if (leadsToInsert.length > 0) {
-            await db.insert(leads).values(leadsToInsert);
-            importedLeads += leadsToInsert.length;
+          if (productsToInsert.length > 0) {
+            await tx.insert(products).values(productsToInsert);
+            importedProducts += productsToInsert.length;
           }
         }
-      }
+        
+        let importedLeads = 0;
+        if (importData.leads && Array.isArray(importData.leads)) {
+          await tx.execute(sql`TRUNCATE TABLE leads RESTART IDENTITY CASCADE`);
+          
+          for (let i = 0; i < importData.leads.length; i += batchSize) {
+            const batch = importData.leads.slice(i, i + batchSize);
+            const leadsToInsert = batch.map((l: any) => {
+              const { id, ...leadData } = l;
+              return leadData;
+            });
+            
+            if (leadsToInsert.length > 0) {
+              await tx.insert(leads).values(leadsToInsert);
+              importedLeads += leadsToInsert.length;
+            }
+          }
+        }
+        
+        let importedOrders = 0;
+        if (importData.orders && Array.isArray(importData.orders)) {
+          await tx.execute(sql`TRUNCATE TABLE orders RESTART IDENTITY CASCADE`);
+          
+          for (let i = 0; i < importData.orders.length; i += batchSize) {
+            const batch = importData.orders.slice(i, i + batchSize);
+            const ordersToInsert = batch.map((o: any) => {
+              const { id, ...orderData } = o;
+              return orderData;
+            });
+            
+            if (ordersToInsert.length > 0) {
+              await tx.insert(orders).values(ordersToInsert);
+              importedOrders += ordersToInsert.length;
+            }
+          }
+        }
+        
+        return { importedProducts, importedLeads, importedOrders };
+      });
       
       res.json({
         success: true,
-        message: `Imported ${importedProducts} products and ${importedLeads} leads`,
-        importedProducts,
-        importedLeads,
+        message: `Imported ${result.importedProducts} products, ${result.importedLeads} leads, and ${result.importedOrders} orders`,
+        ...result,
       });
     } catch (error) {
       console.error("Error importing database:", error);
