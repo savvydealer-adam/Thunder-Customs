@@ -1,5 +1,5 @@
 import { Search, ShoppingCart, Menu, LogIn, LogOut, User, Shield, ClipboardList, FileBox, UserPlus } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [, navigate] = useLocation();
   const { user, isAuthenticated, isAdmin, isStrictAdmin, isStaff } = useAuth();
   const { getTotalItems } = useCart();
   const cartItemCount = getTotalItems();
@@ -36,7 +37,16 @@ export function Header() {
             <img src={logoUrl} alt="Thunder Customs" className="h-12 w-auto" />
           </Link>
 
-          <div className="hidden flex-1 max-w-2xl lg:flex">
+          <form
+            className="hidden flex-1 max-w-2xl lg:flex"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchQuery.trim()) {
+                navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }}
+            data-testid="form-search"
+          >
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -48,7 +58,7 @@ export function Header() {
                 data-testid="input-search"
               />
             </div>
-          </div>
+          </form>
 
           <nav className="flex items-center gap-2">
             <Link href="/products" className="hidden sm:block">

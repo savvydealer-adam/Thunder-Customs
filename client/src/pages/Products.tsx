@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilters } from "@/components/ProductFilters";
@@ -29,13 +30,25 @@ interface FiltersData {
 }
 
 export default function Products() {
+  const queryString = useSearch();
+  const urlParams = new URLSearchParams(queryString);
+  const initialSearch = urlParams.get('search') || '';
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedManufacturers, setSelectedManufacturers] = useState<string[]>([]);
   const [selectedVehicleMakes, setSelectedVehicleMakes] = useState<string[]>([]);
   const [selectedVehicleModels, setSelectedVehicleModels] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [searchInput, setSearchInput] = useState(initialSearch);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (initialSearch && initialSearch !== searchQuery) {
+      setSearchQuery(initialSearch);
+      setSearchInput(initialSearch);
+      setCurrentPage(1);
+    }
+  }, [initialSearch]);
   const pageSize = 48;
 
   const buildFilteredUrl = () => {
