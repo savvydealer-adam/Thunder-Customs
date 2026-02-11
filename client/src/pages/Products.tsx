@@ -71,7 +71,7 @@ export default function Products() {
   });
 
   const { data, isLoading, error, isFetching } = useQuery<PaginatedProducts>({
-    queryKey: ['/api/products', currentPage, selectedCategories, selectedManufacturers, selectedVehicleMakes, selectedVehicleModels, searchQuery],
+    queryKey: ['/api/products', { page: currentPage, category: selectedCategories, manufacturer: selectedManufacturers, vehicleMake: selectedVehicleMakes, vehicleModel: selectedVehicleModels, search: searchQuery }],
     queryFn: async () => {
       const res = await fetch(buildFilteredUrl());
       if (!res.ok) throw new Error('Failed to fetch products');

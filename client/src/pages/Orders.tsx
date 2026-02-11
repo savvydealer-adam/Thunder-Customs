@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart, Pencil, Save, X, Download } from "lucide-react";
+import { Mail, Phone, Calendar, Package, Loader2, Search, User, Trash2, Car, Plus, ShoppingCart, Pencil, Save, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { generateOrderPDF } from "@/lib/pdfGenerator";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect, Link } from "wouter";
@@ -36,6 +36,14 @@ interface Order {
   completedAt: string | null;
 }
 
+interface PaginatedOrders {
+  orders: Order[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 const statusColors: Record<string, string> = {
   pending: "bg-blue-500",
   processing: "bg-yellow-500",
@@ -58,6 +66,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isEditing, setIsEditing] = useState(false);
   const [editableItems, setEditableItems] = useState<any[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
@@ -87,12 +96,14 @@ export default function Orders() {
     quantity: 1,
   });
 
-  const { data: orders, isLoading } = useQuery<Order[]>({
-    queryKey: ['/api/orders', statusFilter, searchQuery],
+  const { data, isLoading } = useQuery<PaginatedOrders>({
+    queryKey: ['/api/orders', statusFilter, searchQuery, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (searchQuery) params.set('search', searchQuery);
+      params.set('page', String(currentPage));
+      params.set('pageSize', '50');
       const response = await fetch(`/api/orders?${params.toString()}`, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch orders');
       return response.json();
@@ -670,14 +681,14 @@ export default function Orders() {
             <Input
               placeholder="Search by customer name, email, or phone..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10"
               data-testid="input-order-search"
             />
           </div>
         </div>
 
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">
+        <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }} className="mb-6">
           <TabsList className="flex-wrap">
             <TabsTrigger value="all" data-testid="tab-all">
               All ({totalOrders})
@@ -701,7 +712,7 @@ export default function Orders() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : !orders || orders.length === 0 ? (
+        ) : !data?.orders || data.orders.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -714,8 +725,9 @@ export default function Orders() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {orders.map((order) => (
+          <>
+            <div className="grid gap-4">
+            {data.orders.map((order) => (
               <Card key={order.id} className="hover-elevate cursor-pointer" onClick={() => setSelectedOrder(order)}>
                 <CardContent className="p-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -773,17 +785,47 @@ export default function Orders() {
               </Card>
             ))}
           </div>
+            {data && data.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {data.page} of {data.totalPages} ({data.total} total)
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(data.totalPages, p + 1))}
+                  disabled={currentPage === data.totalPages}
+                  data-testid="button-next-page"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
+          </>
         )}
 
         <Dialog open={!!selectedOrder} onOpenChange={(open) => { 
-          if (!open) { 
-            if (isEditing) {
-              // If editing, just cancel edit mode but keep dialog open
-              // User should use Cancel button to discard changes
-              return;
+          if (!open && isEditing) {
+            if (window.confirm("You have unsaved changes. Discard them?")) {
+              cancelEditing();
+              setSelectedOrder(null);
             }
-            setSelectedOrder(null); 
-          } 
+            return;
+          }
+          if (!open) {
+            setSelectedOrder(null);
+          }
         }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             {selectedOrder && (

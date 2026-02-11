@@ -179,25 +179,33 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   doc.setTextColor(100, 100, 100);
   doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 37, { align: "center" });
   
-  // Table data
+  const parsePrice = (priceStr: string | number | null | undefined): number => {
+    if (priceStr === null || priceStr === undefined || priceStr === "N/A") return 0;
+    const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const tableData = items.map((item) => {
+    const price = parsePrice(item.product.price);
+    const subtotal = price * item.quantity;
     return [
       item.product.partNumber,
       item.product.partName,
       item.product.manufacturer,
-      item.product.category,
       item.quantity.toString(),
+      price > 0 ? `$${price.toFixed(2)}` : "Quote",
+      subtotal > 0 ? `$${subtotal.toFixed(2)}` : "Quote",
     ];
   });
 
-  // Add table
   autoTable(doc, {
     startY: 45,
-    head: [["Part #", "Part Name", "Manufacturer", "Category", "Qty"]],
+    head: [["Part #", "Part Name", "Manufacturer", "Qty", "Price", "Subtotal"]],
     body: tableData,
     theme: "grid",
     headStyles: {
-      fillColor: [30, 144, 255], // Thunder Customs blue
+      fillColor: [30, 144, 255],
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 10,
@@ -206,14 +214,31 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
       fontSize: 9,
     },
     columnStyles: {
-      0: { cellWidth: 30 }, // Part #
-      1: { cellWidth: 70 }, // Part Name
-      2: { cellWidth: 35 }, // Manufacturer
-      3: { cellWidth: 35 }, // Category
-      4: { cellWidth: 20, halign: "center" }, // Qty
+      0: { cellWidth: 28 },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 15, halign: "center" },
+      4: { cellWidth: 22, halign: "right" },
+      5: { cellWidth: 25, halign: "right" },
     },
     margin: { left: 10, right: 10 },
   });
+
+  const finalY = (doc as any).lastAutoTable.finalY || 95;
+  const totalPrice = items.reduce((sum, item) => {
+    const price = parsePrice(item.product.price);
+    return sum + (price * item.quantity);
+  }, 0);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Total Items: ${items.reduce((sum, item) => sum + item.quantity, 0)}`, 14, finalY + 10);
+  
+  if (totalPrice > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(30, 144, 255);
+    doc.text(`Estimated Total: $${totalPrice.toFixed(2)}`, 14, finalY + 18);
+  }
 
   // Footer
   const pageCount = doc.getNumberOfPages();

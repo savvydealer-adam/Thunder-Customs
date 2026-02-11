@@ -11,6 +11,22 @@ export interface PaginatedProducts {
   totalPages: number;
 }
 
+export interface PaginatedLeads {
+  leads: Lead[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface PaginatedOrders {
+  orders: Order[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface ProductFilters {
   category?: string;
   manufacturer?: string;
@@ -43,15 +59,15 @@ export interface IStorage {
   
   // Lead operations
   createLead(lead: InsertLead): Promise<Lead>;
-  getLeads(filters?: { status?: string; search?: string }): Promise<Lead[]>;
+  getLeads(filters?: { status?: string; search?: string; page?: number; pageSize?: number }): Promise<PaginatedLeads>;
   getLead(id: number): Promise<Lead | undefined>;
-  updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null }): Promise<Lead | undefined>;
+  updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null; adfXml?: string }): Promise<Lead | undefined>;
   deleteLead(id: number): Promise<boolean>;
   getLeadStats(): Promise<{ status: string; count: number }[]>;
   
   // Order operations
   createOrder(order: InsertOrder): Promise<Order>;
-  getOrders(filters?: { status?: string; search?: string; createdBy?: string }): Promise<Order[]>;
+  getOrders(filters?: { status?: string; search?: string; createdBy?: string; page?: number; pageSize?: number }): Promise<PaginatedOrders>;
   getOrder(id: number): Promise<Order | undefined>;
   updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null }): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<boolean>;
@@ -102,7 +118,8 @@ export class DatabaseStorage implements IStorage {
       }
     }
     if (filters?.search) {
-      const searchTerm = `%${filters.search}%`;
+      const escapeLike = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const searchTerm = `%${escapeLike(filters.search)}%`;
       conditions.push(
         or(
           ilike(products.partName, searchTerm),
@@ -193,7 +210,7 @@ export class DatabaseStorage implements IStorage {
           retailInstallation: sql`excluded.retail_installation`,
           totalRetail: sql`excluded.total_retail`,
           
-          imageUrl: sql`excluded.image_url`,
+          imageUrl: sql`CASE WHEN excluded.image_url IS NOT NULL AND excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END`,
           stockQuantity: sql`excluded.stock_quantity`,
           dataSource: sql`excluded.data_source`,
           isHidden: sql`excluded.is_hidden`,
@@ -256,33 +273,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // First, check if a user with this email already exists
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, userData.email));
-
-    if (existingUser) {
-      // Update the existing user with new data (including potentially new ID from OIDC)
-      const [updatedUser] = await db
-        .update(users)
-        .set({
-          id: userData.id,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          firstName: sql`excluded.first_name`,
+          lastName: sql`excluded.last_name`,
+          profileImageUrl: sql`excluded.profile_image_url`,
           updatedAt: new Date(),
-        })
-        .where(eq(users.email, userData.email))
-        .returning();
-      return updatedUser;
-    } else {
-      // Insert new user
-      const [newUser] = await db
-        .insert(users)
-        .values(userData)
-        .returning();
-      return newUser;
-    }
+        },
+      })
+      .returning();
+    return user;
   }
 
   async getAllUsers(): Promise<User[]> {
@@ -318,7 +322,10 @@ export class DatabaseStorage implements IStorage {
     return newLead;
   }
 
-  async getLeads(filters?: { status?: string; search?: string }): Promise<Lead[]> {
+  async getLeads(filters?: { status?: string; search?: string; page?: number; pageSize?: number }): Promise<PaginatedLeads> {
+    const page = filters?.page || 1;
+    const pageSize = Math.min(filters?.pageSize || 50, 100);
+    const offset = (page - 1) * pageSize;
     const conditions = [];
     
     if (filters?.status && filters.status !== 'all') {
@@ -337,10 +344,30 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    if (conditions.length > 0) {
-      return await db.select().from(leads).where(and(...conditions)).orderBy(desc(leads.createdAt));
-    }
-    return await db.select().from(leads).orderBy(desc(leads.createdAt));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(whereClause);
+    
+    const total = countResult?.count || 0;
+
+    const result = await db
+      .select()
+      .from(leads)
+      .where(whereClause)
+      .orderBy(desc(leads.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    return {
+      leads: result,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getLead(id: number): Promise<Lead | undefined> {
@@ -348,10 +375,9 @@ export class DatabaseStorage implements IStorage {
     return lead;
   }
 
-  async updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null }): Promise<Lead | undefined> {
+  async updateLead(id: number, data: { status?: string; assignedTo?: string | null; comments?: string | null; adfXml?: string }): Promise<Lead | undefined> {
     const updateData: any = { updatedAt: new Date() };
     
-    // Only allow specific fields to be updated (whitelist approach)
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
@@ -361,13 +387,12 @@ export class DatabaseStorage implements IStorage {
     if (data.comments !== undefined) {
       updateData.comments = data.comments;
     }
+    if (data.adfXml !== undefined) {
+      updateData.adfXml = data.adfXml;
+    }
     
-    // If status is being changed to 'contacted' and contactedAt is not set, set it
     if (data.status === 'contacted') {
-      const existingLead = await this.getLead(id);
-      if (existingLead && !existingLead.contactedAt) {
-        updateData.contactedAt = new Date();
-      }
+      updateData.contactedAt = sql`COALESCE(contacted_at, NOW())`;
     }
     
     const [lead] = await db
@@ -400,7 +425,10 @@ export class DatabaseStorage implements IStorage {
     return newOrder;
   }
 
-  async getOrders(filters?: { status?: string; search?: string; createdBy?: string }): Promise<Order[]> {
+  async getOrders(filters?: { status?: string; search?: string; createdBy?: string; page?: number; pageSize?: number }): Promise<PaginatedOrders> {
+    const page = filters?.page || 1;
+    const pageSize = Math.min(filters?.pageSize || 50, 100);
+    const offset = (page - 1) * pageSize;
     const conditions = [];
     
     if (filters?.status && filters.status !== 'all') {
@@ -422,10 +450,30 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    if (conditions.length > 0) {
-      return await db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
-    }
-    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(whereClause);
+    
+    const total = countResult?.count || 0;
+
+    const result = await db
+      .select()
+      .from(orders)
+      .where(whereClause)
+      .orderBy(desc(orders.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    return {
+      orders: result,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getOrder(id: number): Promise<Order | undefined> {

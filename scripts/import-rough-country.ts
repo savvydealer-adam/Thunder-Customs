@@ -12,7 +12,7 @@
 import ExcelJS from "exceljs";
 import { db } from "../server/db";
 import { products } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 
 const FEED_URL = "https://feeds.roughcountry.com/jobber_pc1.xlsx";
 const DATA_SOURCE = "rough_country";
@@ -300,7 +300,12 @@ export async function importRoughCountryFeed(
             }
           }
         } else {
-          // Perform upsert
+          const existingParts = await db
+            .select({ partNumber: products.partNumber })
+            .from(products)
+            .where(inArray(products.partNumber, productBatch.map(p => p.partNumber)));
+          const existingSet = new Set(existingParts.map(p => p.partNumber));
+
           await db
             .insert(products)
             .values(productBatch)
@@ -317,16 +322,21 @@ export async function importRoughCountryFeed(
                 cost: sql`excluded.cost`,
                 partCost: sql`excluded.part_cost`,
                 partMSRP: sql`excluded.part_msrp`,
-                imageUrl: sql`excluded.image_url`,
-                imageSource: sql`excluded.image_source`,
+                imageUrl: sql`CASE WHEN excluded.image_url IS NOT NULL AND excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END`,
+                imageSource: sql`CASE WHEN excluded.image_url IS NOT NULL AND excluded.image_url != '' THEN excluded.image_source ELSE products.image_source END`,
                 stockQuantity: sql`excluded.stock_quantity`,
                 dataSource: sql`excluded.data_source`,
                 updatedAt: new Date(),
               },
             });
 
-          // Count adds vs updates (simplified - just count batch)
-          stats.added += productBatch.length;
+          for (const p of productBatch) {
+            if (existingSet.has(p.partNumber)) {
+              stats.updated++;
+            } else {
+              stats.added++;
+            }
+          }
         }
       }
 

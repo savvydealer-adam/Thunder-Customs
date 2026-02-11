@@ -36,8 +36,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json({ user });
+      const user = req.user as any;
+      
+      let cachedUser = null;
+      const cacheAge = Date.now() - (user.cachedUserAt || 0);
+      if (user.cachedUser && cacheAge <= 300_000) {
+        cachedUser = user.cachedUser;
+      } else {
+        cachedUser = await storage.getUser(userId);
+        user.cachedUser = cachedUser;
+        user.cachedUserAt = Date.now();
+      }
+      
+      res.json({ user: cachedUser });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -199,8 +210,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = validationResult.data;
       
-      const adfXml = generateAdfXml(data);
-      
       const userId = req.isAuthenticated?.() ? req.user?.claims?.sub : null;
       
       const itemCount = data.cartItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -216,10 +225,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cartItems: data.cartItems,
         cartTotal: data.cartTotal || null,
         itemCount,
-        adfXml,
+        adfXml: '',
         status: 'new',
         submittedBy: userId,
       });
+
+      const adfXml = generateAdfXml({ ...data, leadId: lead.id });
+      await storage.updateLead(lead.id, { adfXml });
 
       // Send email notification (don't block response on email)
       sendLeadNotification({
@@ -249,10 +261,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get leads - authenticated staff can view leads
   app.get("/api/leads", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const { status, search } = req.query;
+      const { status, search, page, pageSize } = req.query;
       const leads = await storage.getLeads({
         status: status as string,
         search: search as string,
+        page: page ? parseInt(page as string) : undefined,
+        pageSize: pageSize ? parseInt(pageSize as string) : undefined,
       });
       res.json(leads);
     } catch (error) {
@@ -782,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/populate-images", isAuthenticated, requireAdmin, async (req, res) => {
+  app.post("/api/admin/populate-images", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       if (!process.env.UNSPLASH_ACCESS_KEY) {
         return res.status(400).json({ 
@@ -1066,11 +1080,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get orders - authenticated staff can view orders
   app.get("/api/orders", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
-      const { status, search, createdBy } = req.query;
+      const { status, search, createdBy, page, pageSize } = req.query;
       const orders = await storage.getOrders({
         status: status as string,
         search: search as string,
         createdBy: createdBy as string,
+        page: page ? parseInt(page as string) : undefined,
+        pageSize: pageSize ? parseInt(pageSize as string) : undefined,
       });
       res.json(orders);
     } catch (error) {

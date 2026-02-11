@@ -16,6 +16,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,6 +29,7 @@ export function Header() {
   const { user, isAuthenticated, isAdmin, isStrictAdmin, isStaff } = useAuth();
   const { getTotalItems } = useCart();
   const cartItemCount = getTotalItems();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     if (!firstName && !lastName) return "U";
@@ -61,14 +68,14 @@ export function Header() {
           </form>
 
           <nav className="flex items-center gap-2">
-            <Link href="/products" className="hidden sm:block">
+            <Link href="/products" className="hidden md:block">
               <Button variant="ghost" data-testid="button-shop">
                 Shop Parts
               </Button>
             </Link>
             
             {isStaff && (
-              <Link href="/leads" className="hidden sm:block">
+              <Link href="/leads" className="hidden md:block">
                 <Button variant="ghost" data-testid="button-leads">
                   <ClipboardList className="w-4 h-4 mr-2" />
                   Leads
@@ -77,7 +84,7 @@ export function Header() {
             )}
             
             {isStaff && (
-              <Link href="/orders" className="hidden sm:block">
+              <Link href="/orders" className="hidden md:block">
                 <Button variant="ghost" data-testid="button-orders">
                   <FileBox className="w-4 h-4 mr-2" />
                   Orders
@@ -86,7 +93,7 @@ export function Header() {
             )}
             
             {isAdmin && (
-              <Link href="/admin" className="hidden sm:block">
+              <Link href="/admin" className="hidden md:block">
                 <Button variant="ghost" data-testid="button-admin">
                   <Shield className="w-4 h-4 mr-2" />
                   Admin
@@ -95,7 +102,7 @@ export function Header() {
             )}
             
             <Link href="/cart">
-              <Button variant="ghost" size="icon" className="relative hidden sm:flex" data-testid="button-cart">
+              <Button variant="ghost" size="icon" className="relative" data-testid="button-cart">
                 <ShoppingCart className="h-5 w-5" />
                 {cartItemCount > 0 && (
                   <Badge 
@@ -112,13 +119,13 @@ export function Header() {
             {!isAuthenticated && (
               <>
                 <a href="/api/login">
-                  <Button variant="ghost" className="hidden sm:flex gap-2" data-testid="button-login">
+                  <Button variant="ghost" className="hidden md:flex gap-2" data-testid="button-login">
                     <LogIn className="h-4 w-4" />
                     Log In
                   </Button>
                 </a>
                 <a href="/api/login">
-                  <Button variant="default" className="hidden sm:flex gap-2" data-testid="button-create-account">
+                  <Button variant="default" className="hidden md:flex gap-2" data-testid="button-create-account">
                     <User className="h-4 w-4" />
                     Create Account
                   </Button>
@@ -215,9 +222,67 @@ export function Header() {
               </DropdownMenu>
             )}
 
-            <Button variant="ghost" size="icon" className="sm:hidden" data-testid="button-menu">
-              <Menu className="h-6 w-6" />
-            </Button>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-mobile-menu">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetTitle>Menu</SheetTitle>
+                <nav className="flex flex-col gap-2 mt-4">
+                  <Link href="/products" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-shop">
+                      Shop Parts
+                    </Button>
+                  </Link>
+
+                  {isStaff && (
+                    <Link href="/leads" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-leads">
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Leads
+                      </Button>
+                    </Link>
+                  )}
+
+                  {isStaff && (
+                    <Link href="/orders" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-orders">
+                        <FileBox className="w-4 h-4 mr-2" />
+                        Orders
+                      </Button>
+                    </Link>
+                  )}
+
+                  {isAdmin && (
+                    <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-admin">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Admin
+                      </Button>
+                    </Link>
+                  )}
+
+                  {!isAuthenticated && (
+                    <>
+                      <a href="/api/login">
+                        <Button variant="ghost" className="w-full justify-start gap-2" data-testid="mobile-button-login">
+                          <LogIn className="h-4 w-4" />
+                          Log In
+                        </Button>
+                      </a>
+                      <a href="/api/login">
+                        <Button variant="default" className="w-full justify-start gap-2" data-testid="mobile-button-create-account">
+                          <User className="h-4 w-4" />
+                          Create Account
+                        </Button>
+                      </a>
+                    </>
+                  )}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </nav>
         </div>
       </div>

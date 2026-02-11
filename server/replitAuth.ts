@@ -202,8 +202,18 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const dbUser = await storage.getUser(user.claims.sub);
-    if (!dbUser || (dbUser.role !== 'admin' && dbUser.role !== 'manager')) {
+    let role = user.cachedRole;
+    const cacheAge = Date.now() - (user.cachedRoleAt || 0);
+    if (!role || cacheAge > 300_000) {
+      const dbUser = await storage.getUser(user.claims.sub);
+      if (!dbUser) {
+        return res.status(403).json({ message: "Forbidden: Admin access required" });
+      }
+      role = dbUser.role;
+      user.cachedRole = role;
+      user.cachedRoleAt = Date.now();
+    }
+    if (role !== 'admin' && role !== 'manager') {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
     }
     next();
@@ -221,8 +231,18 @@ export const requireStrictAdmin: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const dbUser = await storage.getUser(user.claims.sub);
-    if (!dbUser || dbUser.role !== 'admin') {
+    let role = user.cachedRole;
+    const cacheAge = Date.now() - (user.cachedRoleAt || 0);
+    if (!role || cacheAge > 300_000) {
+      const dbUser = await storage.getUser(user.claims.sub);
+      if (!dbUser) {
+        return res.status(403).json({ message: "Forbidden: Admin-only access required" });
+      }
+      role = dbUser.role;
+      user.cachedRole = role;
+      user.cachedRoleAt = Date.now();
+    }
+    if (role !== 'admin') {
       return res.status(403).json({ message: "Forbidden: Admin-only access required" });
     }
     next();
@@ -240,9 +260,19 @@ export const requireStaff: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const dbUser = await storage.getUser(user.claims.sub);
+    let role = user.cachedRole;
+    const cacheAge = Date.now() - (user.cachedRoleAt || 0);
+    if (!role || cacheAge > 300_000) {
+      const dbUser = await storage.getUser(user.claims.sub);
+      if (!dbUser) {
+        return res.status(403).json({ message: "Forbidden: Staff access required" });
+      }
+      role = dbUser.role;
+      user.cachedRole = role;
+      user.cachedRoleAt = Date.now();
+    }
     const staffRoles = ['salesman', 'staff', 'manager', 'admin'];
-    if (!dbUser || !staffRoles.includes(dbUser.role)) {
+    if (!staffRoles.includes(role)) {
       return res.status(403).json({ message: "Forbidden: Staff access required" });
     }
     next();

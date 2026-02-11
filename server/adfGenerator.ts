@@ -18,6 +18,7 @@ interface LeadData {
   comments?: string | null;
   cartItems: CartItemData[];
   cartTotal?: string | null;
+  leadId?: number;
 }
 
 export function generateAdfXml(lead: LeadData): string {
@@ -46,7 +47,7 @@ export function generateAdfXml(lead: LeadData): string {
 <?adf version="1.0"?>
 <adf>
   <prospect status="new">
-    <id sequence="1" source="Thunder Customs Website">${Date.now()}</id>
+    <id sequence="1" source="Thunder Customs Website">${lead.leadId || Date.now()}</id>
     <requestdate>${timestamp}</requestdate>
     <customer>
       <contact>

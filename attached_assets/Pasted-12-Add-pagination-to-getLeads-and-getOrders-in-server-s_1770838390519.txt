@@ -1,0 +1,40 @@
+12. Add pagination to getLeads() and getOrders() in server/storage.ts, similar to how getProducts() works. Accept page and pageSize parameters, return total count and paginated results. Update the Leads.tsx and Orders.tsx pages to support pagination with page controls.
+
+13. In the getProducts search filter in server/storage.ts, escape SQL LIKE wildcards (% and _) in the user's search input before wrapping it with %. Add a helper: const escapeLike = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_'); and apply it to the search term.
+
+14. Cache the user's role in the session after login and after role updates. In the auth middleware, check the session first before hitting the database. Invalidate the cached role when a user's role is changed via the admin panel. This eliminates redundant database queries on every authenticated request.
+
+15. Replace the SELECT-then-INSERT/UPDATE pattern in upsertUser() with a proper database upsert using Drizzle's onConflictDoUpdate targeting the email column (or id). This eliminates the race condition where two concurrent logins could conflict.
+
+16. Fix the Rough Country import stats to accurately count adds vs updates. After the upsert, use the PostgreSQL xmax system column or compare against a pre-query of existing part numbers in the batch to determine which were inserts vs updates.
+
+17. Fix the order detail dialog in Orders.tsx so that clicking outside or pressing Escape while editing shows a confirmation prompt ("Discard changes?") instead of silently blocking the close action.
+
+18. Remove or fix the duplicate image population endpoints. The populate-images endpoint should actually use an image search API (Unsplash) as described in the UI, or be removed. Currently both endpoints do the same thing (generate placeholder URLs). Rename or consolidate to avoid confusion.
+
+19. `Optimize the updateLead method to only fetch the existing lead when the status
+is being changed to 'contacted'. Move the contactedAt check inside the status condition block to avoid unnecessary database queries.
+
+**20.** Simplify the decimal field validation in the admin product update endpoint. Replace the complex union/refine/transform chain with a cleaner approach: accept string or null, trim whitespace, and use a single transform that returns null for empty/null values and the trimmed string for valid decimals. Remove the ambiguity between undefined and null.`
+And #21-30 (Low):
+
+21. Implement a mobile navigation menu in Header.tsx. Add a Sheet or Drawer component that opens when the hamburger menu button is clicked. Include all navigation links (Shop Parts, Cart, Leads, Orders, Admin, Profile, Login/Logout) based on the user's authentication state and role.
+
+22. Scope the cart localStorage key to the current user. Change CART_STORAGE_KEY to include the user ID when authenticated (e.g., "thunder_customs_cart_userId123") and fall back to the anonymous key for unauthenticated users. Clear the cart state when the user changes.
+
+23. Add input validation for all route parameters that use parseInt(req.params.id). If the result is NaN or negative, return a 400 Bad Request response immediately instead of querying the database.
+
+24. In Products.tsx, change the useQuery queryKey to use serialized strings instead of raw arrays for filter values. For example: queryKey: ['/api/products', currentPage, selectedCategories.join(','), selectedManufacturers.join(','), ...] or use a single params object.
+
+25. Add more robust error handling for lead email notifications. Log email failures with the lead ID so they can be identified. Consider adding a 'notificationSent' boolean column to the leads table so staff can see which leads had failed email notifications and follow up manually.
+
+26. Change the ADF XML generation to accept the lead ID and use it as the prospect ID instead of Date.now(). Update the lead creation flow to generate the ADF XML after the lead is created in the database, so the actual lead ID is available.
+
+27. Add a Price column to the shopping list PDF in pdfGenerator.ts. Show the totalRetail, partMSRP, or price (whichever is available) for each item, and add a total row at the bottom.
+
+28. `Modify the Rough Country import to preserve manually-uploaded images. In the onConflictDoUpdate set clause, use COALESCE or a CASE expression to only update imageUrl if the existing value is
+null, a placeholder, or from the rough_country source.
+
+**29.** Make the createProducts upsert smarter about preserving manual edits. Don't overwrite isHidden, isPopular, or description if they were manually set. Consider adding a 'manuallyEdited' boolean flag to products, or use COALESCE to only update fields that are NULL in the existing record.
+
+**30.** Add CSRF protection to the Express app. Install and configure a CSRF middleware (like csrf-csrf). Generate a CSRF token on the session and validate it on all POST/PATCH/DELETE requests. Send the token to the client via a cookie or API endpoint, and include it in all API requests from the frontend.`
