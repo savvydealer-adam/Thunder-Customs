@@ -30,6 +30,7 @@ export function LeadSubmissionForm() {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  const [honeypot, setHoneypot] = useState("");
   const [formData, setFormData] = useState<LeadFormData>({
     firstName: "",
     lastName: "",
@@ -57,6 +58,7 @@ export function LeadSubmissionForm() {
     mutationFn: async () => {
       return await apiRequest('POST', '/api/leads', {
         ...formData,
+        website: honeypot,
         cartItems: items.map(item => ({
           product: {
             id: item.product.id,
@@ -227,6 +229,19 @@ export function LeadSubmissionForm() {
                 placeholder="Any specific requirements or questions?"
                 rows={3}
                 data-testid="input-comments"
+              />
+            </div>
+
+            <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+              <label htmlFor="website">Website</label>
+              <input
+                type="text"
+                id="website"
+                name="website"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
               />
             </div>
 

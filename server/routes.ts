@@ -10,6 +10,7 @@ import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
 import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
+import rateLimit from "express-rate-limit";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -133,8 +134,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lead submission - public endpoint (anyone can submit a lead request)
-  app.post("/api/leads", async (req: any, res) => {
+  const leadRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many submissions. Please try again in 15 minutes." },
+  });
+
+  app.post("/api/leads", leadRateLimiter, async (req: any, res) => {
     try {
+      if (req.body.website) {
+        return res.status(200).json({ success: true, message: "Request submitted" });
+      }
+
       const leadSchema = z.object({
         firstName: z.string().min(1, "First name is required"),
         lastName: z.string().min(1, "Last name is required"),
