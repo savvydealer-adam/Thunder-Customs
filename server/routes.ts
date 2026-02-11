@@ -12,7 +12,8 @@ import { sendLeadNotification } from "./emailService";
 import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
 import rateLimit from "express-rate-limit";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 async function searchProductImage(partName: string, manufacturer: string): Promise<string | null> {
   const manufacturerText = manufacturer.substring(0, 20);
@@ -373,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Database import - restore products from JSON (wrapped in transaction for safety)
-  app.post("/api/admin/database/import", isAuthenticated, requireStrictAdmin, upload.single('file'), async (req: any, res) => {
+  app.post("/api/admin/database/import", isAuthenticated, requireStrictAdmin, uploadFile.single('file'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -561,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload product image (saved to disk, URL stored in database)
-  app.post("/api/admin/products/:id/image", isAuthenticated, requireAdmin, upload.single('image'), async (req: any, res) => {
+  app.post("/api/admin/products/:id/image", isAuthenticated, requireAdmin, uploadImage.single('image'), async (req: any, res) => {
     try {
       const { id } = req.params;
       
@@ -597,7 +598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/import-csv", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
+  app.post("/api/admin/import-csv", isAuthenticated, requireAdmin, uploadFile.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -665,7 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import products from PDF catalog
-  app.post("/api/admin/import-pdf-catalog", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
+  app.post("/api/admin/import-pdf-catalog", isAuthenticated, requireAdmin, uploadFile.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
