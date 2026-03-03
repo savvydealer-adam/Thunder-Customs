@@ -123,6 +123,35 @@ function normalizePrice(value: unknown): string | null {
   return isNaN(num) ? null : num.toFixed(2);
 }
 
+const MOJIBAKE_REPLACEMENTS: [string, string][] = [
+  ["\u0393\u00c7\u00d6", "'"],
+  ["\u0393\u00c7\u00bf", "'"],
+  ["\u0393\u00c7\u00a3", '"'],
+  ["\u0393\u00c7\u00a5", '"'],
+  ["\u0393\u00c7\u00f4", "\u2014"],
+  ["\u0393\u00c7\u00f6", "\u2013"],
+  ["\u0393\u00c7\u00bb", "\u2022"],
+  ["\u0393\u00c7\u00c9", "..."],
+  ["\u0393\u00c7\u00ef", ""],
+  ["\u0393\u00e4\u00f3", "\u2122"],
+  ["\u0393\u00e0\u00a5", "\u2265"],
+  ["\u00c2\u00a0", " "],
+  ["\u00c2\u00b0", "\u00b0"],
+  ["\u00c2\u00be", "\u00be"],
+  ["\u00c2\u00bc", "\u00bc"],
+  ["\u00c2\u00ba", "\u00ba"],
+  ["\u00c2\u00ae", "\u00ae"],
+  ["\u00c2\u00bd", "\u00bd"],
+];
+
+function cleanMojibake(text: string): string {
+  let result = text;
+  for (const [bad, good] of MOJIBAKE_REPLACEMENTS) {
+    result = result.replaceAll(bad, good);
+  }
+  return result;
+}
+
 /**
  * Extract primitive value from ExcelJS cell value
  * ExcelJS can return objects for hyperlinks, rich text, etc.
@@ -132,7 +161,9 @@ function extractCellValue(value: ExcelJS.CellValue): string | number | null {
     return null;
   }
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return typeof value === 'boolean' ? (value ? 1 : 0) : value;
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value === 'string') return cleanMojibake(value);
+    return value;
   }
   if (value instanceof Date) {
     return value.toISOString();
