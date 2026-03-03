@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { startCronJobs } from "./cron";
 import path from "path";
 import cookieParser from "cookie-parser";
 
@@ -89,6 +90,7 @@ app.use((req, res, next) => {
       reusePort: true,
     }, () => {
       log(`serving on port ${port}`);
+      startCronJobs();
     });
 
     // Handle server errors

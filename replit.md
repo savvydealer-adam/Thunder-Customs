@@ -45,6 +45,7 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 - **SQL safety**: `escapeLike()` helper escapes `%` and `_` wildcards in LIKE queries
 - **Image preservation**: Both Rough Country import and `createProducts()` use SQL CASE/COALESCE to preserve manually-uploaded images during bulk imports
 - **Pagination**: Leads and orders APIs support server-side pagination with `sql<number>\`count(*)::int\`` for counts, limit/offset for queries, returning `{items, total, page, pageSize, totalPages}`
+- **Scheduled imports**: `node-cron` runs Rough Country XLSX feed import daily at 2:00 AM Mountain Time (`server/cron.ts`); includes duplicate-run guard and progress logging
 
 ## External Dependencies
 
