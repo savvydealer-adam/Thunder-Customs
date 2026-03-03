@@ -1019,7 +1019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: z.string().optional().nullable(),
         cartItems: z.array(z.object({
           product: z.object({
-            id: z.number(),
+            id: z.number().nullable().optional(),
             partNumber: z.string(),
             partName: z.string(),
             manufacturer: z.string(),
