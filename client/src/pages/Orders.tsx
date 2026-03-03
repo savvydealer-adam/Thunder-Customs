@@ -134,12 +134,22 @@ export default function Orders() {
         description: "Order has been created successfully.",
       });
     },
-    onError: () => {
-      toast({
-        title: "Creation Failed",
-        description: "Failed to create order.",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      console.error("Order creation error:", error);
+      const msg = error?.message || "";
+      if (msg.includes("401")) {
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please refresh the page and log in again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Creation Failed",
+          description: msg || "Failed to create order.",
+          variant: "destructive",
+        });
+      }
     },
   });
 

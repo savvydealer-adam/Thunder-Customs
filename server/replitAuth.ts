@@ -164,6 +164,12 @@ export async function setupAuth(app: Express) {
   });
 }
 
+export async function refreshUserToken(user: any) {
+  const config = await getOidcConfig();
+  const tokenResponse = await client.refreshTokenGrant(config, user.refresh_token);
+  updateUserSession(user, tokenResponse);
+}
+
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
@@ -183,12 +189,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const config = await getOidcConfig();
-    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
-    updateUserSession(user, tokenResponse);
+    await refreshUserToken(user);
     return next();
-  } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
+  } catch (error: any) {
+    console.error("Token refresh failed:", error?.message || error);
+    req.logout?.(() => {});
+    res.status(401).json({ message: "Session expired. Please log in again." });
     return;
   }
 };

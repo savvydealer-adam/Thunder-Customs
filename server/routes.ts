@@ -5,7 +5,7 @@ import { z } from "zod";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
-import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireStaff } from "./replitAuth";
+import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireStaff, refreshUserToken } from "./replitAuth";
 import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
@@ -60,13 +60,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes - returns envelope with user (null for unauthenticated)
   app.get('/api/auth/user', async (req: any, res) => {
     try {
-      // If not authenticated, return null user in envelope
       if (!req.isAuthenticated() || !req.user?.claims?.sub) {
         return res.json({ user: null });
       }
+
+      const user = req.user as any;
+      const now = Math.floor(Date.now() / 1000);
+      if (user.expires_at && now > user.expires_at && user.refresh_token) {
+        try {
+          await refreshUserToken(user);
+        } catch (refreshErr) {
+          return res.json({ user: null });
+        }
+      }
       
       const userId = req.user.claims.sub;
-      const user = req.user as any;
       
       let cachedUser = null;
       const cacheAge = Date.now() - (user.cachedUserAt || 0);
@@ -1035,6 +1043,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validationResult = orderSchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.error("Order validation failed:", JSON.stringify(validationResult.error.errors));
+        console.error("Order request body:", JSON.stringify(req.body, null, 2));
         return res.status(400).json({
           error: "Invalid input",
           details: validationResult.error.errors,
@@ -1070,9 +1080,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderId: order.id,
         message: "Order created successfully",
       });
-    } catch (error) {
-      console.error("Error creating order:", error);
-      res.status(500).json({ error: "Failed to create order" });
+    } catch (error: any) {
+      console.error("Error creating order:", error?.message || error);
+      console.error("Error stack:", error?.stack);
+      res.status(500).json({ error: "Failed to create order", message: error?.message });
     }
   });
 
