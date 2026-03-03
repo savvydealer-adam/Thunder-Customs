@@ -1029,6 +1029,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           quantity: z.number().min(1),
         })).min(1, "Order must have at least one item"),
         cartTotal: z.string().optional().nullable(),
+        taxRate: z.string().optional().nullable(),
+        taxAmount: z.string().optional().nullable(),
       });
 
       const validationResult = orderSchema.safeParse(req.body);
@@ -1042,7 +1044,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = validationResult.data;
       const userId = req.user?.claims?.sub;
       
-      // Get user info for createdByName
       const user = await storage.getUser(userId);
       const createdByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : null;
       
@@ -1056,6 +1057,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: data.notes || null,
         cartItems: data.cartItems,
         cartTotal: data.cartTotal || null,
+        taxRate: data.taxRate || "0.0700",
+        taxAmount: data.taxAmount || null,
         itemCount,
         status: 'pending',
         createdBy: userId,
@@ -1158,13 +1161,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.notes = notes;
       }
       
-      // Support updating order items (for admin/manager editing orders)
       if (cartItems !== undefined) {
         updateData.cartItems = cartItems;
       }
       
       if (cartTotal !== undefined) {
         updateData.cartTotal = cartTotal;
+      }
+
+      if (req.body.taxRate !== undefined) {
+        updateData.taxRate = req.body.taxRate;
+      }
+
+      if (req.body.taxAmount !== undefined) {
+        updateData.taxAmount = req.body.taxAmount;
       }
       
       if (itemCount !== undefined) {

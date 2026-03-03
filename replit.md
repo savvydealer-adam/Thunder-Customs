@@ -38,6 +38,16 @@ The system uses Neon serverless PostgreSQL with Drizzle ORM for type-safe querie
 
 Client-side state uses TanStack Query for server data (products, categories, filters) with a query key-based caching strategy using object-form queryKeys (e.g., `['/api/products', {page, category, ...}]`) for proper cache invalidation. Local React state manages UI-specific elements. The shopping cart system is managed via React Context with user-scoped localStorage persistence (`cart_${userId}` for logged-in users, `cart_anonymous` for anonymous), supporting add, update, remove, and clear operations with cart merge on login. Provides client-side PDF export (with Price/Subtotal columns) and print-friendly cart pages.
 
+### Tax System (March 2026)
+
+- **7% Polk County tax** applied to all orders and cart summaries
+- Centralized config in `shared/taxConfig.ts`: `TAX_RATE`, `TAX_RATE_DISPLAY`, `TAX_JURISDICTION`, `calculateTax()`
+- Orders store `tax_rate` (decimal 5,4) and `tax_amount` (decimal 10,2) columns
+- Cart page summary shows subtotal, tax line, and estimated total
+- Order creation form (OrderCreationForm.tsx) and Orders.tsx both compute and submit tax
+- PDF exports (order PDFs and shopping list PDFs) include tax breakdown using shared config
+- Order list view shows "incl. $X tax" below total; order detail dialog shows full subtotal/tax/total breakdown
+
 ### Performance Optimizations (February 2026)
 
 - **Role caching**: User roles cached in session with 5-minute TTL (`cachedRole`/`cachedRoleAt` on session user object) to reduce DB queries in requireAdmin, requireStrictAdmin, requireStaff middleware

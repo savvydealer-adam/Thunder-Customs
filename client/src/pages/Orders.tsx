@@ -17,6 +17,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCart } from "@/contexts/CartContext";
+import { TAX_RATE, TAX_RATE_DISPLAY, TAX_JURISDICTION, calculateTax } from "@shared/taxConfig";
 
 interface Order {
   id: number;
@@ -27,6 +28,8 @@ interface Order {
   notes: string | null;
   cartItems: any[];
   cartTotal: string | null;
+  taxRate: string | null;
+  taxAmount: string | null;
   itemCount: number;
   status: string;
   createdBy: string;
@@ -225,10 +228,12 @@ export default function Orders() {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    const cartTotal = createOrderItems.reduce((sum, item) => {
+    const subtotal = createOrderItems.reduce((sum, item) => {
       const price = parsePrice(item.product.price);
       return sum + (price * item.quantity);
-    }, 0).toFixed(2);
+    }, 0);
+    const taxAmount = calculateTax(subtotal);
+    const cartTotal = (subtotal + taxAmount).toFixed(2);
 
     createOrderMutation.mutate({
       customerName: newOrderData.customerName.trim(),
@@ -248,6 +253,8 @@ export default function Orders() {
         quantity: item.quantity,
       })),
       cartTotal,
+      taxRate: String(TAX_RATE),
+      taxAmount: taxAmount.toFixed(2),
       itemCount: createOrderItems.reduce((sum, item) => sum + item.quantity, 0),
     });
   };
@@ -295,7 +302,7 @@ export default function Orders() {
     setShowCreateAddItem(false);
   };
 
-  const calculateCreateTotal = () => {
+  const calculateCreateSubtotal = () => {
     const parsePrice = (priceStr: string | number | null | undefined): number => {
       if (!priceStr) return 0;
       const cleaned = String(priceStr).replace(/[^0-9.-]/g, '');
@@ -304,7 +311,7 @@ export default function Orders() {
     };
     return createOrderItems.reduce((sum, item) => {
       return sum + (parsePrice(item.product.price) * item.quantity);
-    }, 0).toFixed(2);
+    }, 0);
   };
 
   const getStatCount = (status: string) => {
@@ -382,7 +389,6 @@ export default function Orders() {
   const saveOrderChanges = () => {
     if (!selectedOrder) return;
     
-    // Normalize items to ensure prices are strings and quantities are numbers
     const normalizedItems = editableItems.map(item => ({
       ...item,
       quantity: Number(item.quantity) || 1,
@@ -392,7 +398,9 @@ export default function Orders() {
       }
     }));
     
-    const cartTotal = calculateTotal(normalizedItems);
+    const subtotal = parseFloat(calculateTotal(normalizedItems));
+    const taxAmount = calculateTax(subtotal);
+    const cartTotal = (subtotal + taxAmount).toFixed(2);
     const itemCount = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
     
     updateOrderMutation.mutate({
@@ -400,21 +408,23 @@ export default function Orders() {
       data: {
         cartItems: normalizedItems,
         cartTotal,
+        taxRate: String(TAX_RATE),
+        taxAmount: taxAmount.toFixed(2),
         itemCount,
       }
     }, {
       onSuccess: () => {
-        // Update the selected order with new data so UI reflects changes
         setSelectedOrder({
           ...selectedOrder,
           cartItems: normalizedItems,
           cartTotal,
+          taxRate: String(TAX_RATE),
+          taxAmount: taxAmount.toFixed(2),
           itemCount,
         });
         setIsEditing(false);
         setEditableItems([]);
         setShowAddItem(false);
-        // Note: Toast is handled by the mutation's global onSuccess handler
       }
     });
   };
@@ -518,7 +528,6 @@ export default function Orders() {
                       <ShoppingCart className="h-4 w-4" />
                       Order Items ({createOrderItems.length})
                     </span>
-                    <span className="font-semibold">${calculateCreateTotal()}</span>
                   </div>
                   
                   {createOrderItems.length === 0 ? (
@@ -657,6 +666,27 @@ export default function Orders() {
                   )}
                 </div>
 
+                {createOrderItems.length > 0 && (() => {
+                  const subtotal = calculateCreateSubtotal();
+                  const tax = calculateTax(subtotal);
+                  return (
+                    <div className="border rounded-md p-3 space-y-1" data-testid="order-tax-summary">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>${subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{TAX_JURISDICTION} Tax ({TAX_RATE_DISPLAY})</span>
+                        <span>${tax.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold border-t pt-1">
+                        <span>Total</span>
+                        <span>${(subtotal + tax).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <Button 
                   onClick={handleCreateOrder} 
                   disabled={createOrderMutation.isPending || createOrderItems.length === 0}
@@ -775,9 +805,12 @@ export default function Orders() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-0.5">
                       {order.cartTotal && (
-                        <span className="font-semibold text-lg">${parseFloat(order.cartTotal).toFixed(2)}</span>
+                        <span className="font-semibold text-lg" data-testid={`text-order-total-${order.id}`}>${parseFloat(order.cartTotal).toFixed(2)}</span>
+                      )}
+                      {order.taxAmount && (
+                        <span className="text-xs text-muted-foreground">incl. ${parseFloat(order.taxAmount).toFixed(2)} tax</span>
                       )}
                     </div>
                   </div>
@@ -888,13 +921,6 @@ export default function Orders() {
                         Order Items ({isEditing ? editableItems.length : selectedOrder.itemCount})
                       </h4>
                       <div className="flex items-center gap-2">
-                        {isEditing ? (
-                          <span className="font-semibold text-lg">${calculateTotal(editableItems)}</span>
-                        ) : (
-                          selectedOrder.cartTotal && (
-                            <span className="font-semibold text-lg">${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
-                          )
-                        )}
                         {!isEditing && isAdmin && (
                           <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-order">
                             <Pencil className="h-4 w-4 mr-1" />
@@ -1035,6 +1061,34 @@ export default function Orders() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {selectedOrder.cartTotal && (
+                      <div className="mt-3 space-y-1 pt-2 border-t" data-testid="order-detail-tax-summary">
+                        {selectedOrder.taxAmount ? (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Subtotal</span>
+                              <span>${(parseFloat(selectedOrder.cartTotal) - parseFloat(selectedOrder.taxAmount)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {TAX_JURISDICTION} Tax ({selectedOrder.taxRate ? `${(parseFloat(selectedOrder.taxRate) * 100).toFixed(0)}%` : TAX_RATE_DISPLAY})
+                              </span>
+                              <span>${parseFloat(selectedOrder.taxAmount).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-semibold text-lg border-t pt-1">
+                              <span>Total</span>
+                              <span>${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between font-semibold text-lg">
+                            <span>Total</span>
+                            <span>${parseFloat(selectedOrder.cartTotal).toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -176,6 +176,8 @@ export const orders = pgTable("orders", {
   notes: text("notes"),
   cartItems: jsonb("cart_items").notNull(),
   cartTotal: decimal("cart_total", { precision: 10, scale: 2 }),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 4 }).default("0.0700"),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }),
   itemCount: integer("item_count").notNull(),
   status: varchar("status", { length: 50 }).notNull().default('pending'),
   createdBy: varchar("created_by").notNull(),

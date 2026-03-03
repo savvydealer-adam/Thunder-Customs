@@ -9,6 +9,7 @@ import { useCart } from "@/contexts/CartContext";
 import { generateShoppingListPDF } from "@/lib/pdfGenerator";
 import { LeadSubmissionForm } from "@/components/LeadSubmissionForm";
 import { OrderCreationForm } from "@/components/OrderCreationForm";
+import { TAX_RATE_DISPLAY, TAX_JURISDICTION, calculateTax } from "@shared/taxConfig";
 
 export default function Cart() {
   const { items, updateQuantity, removeFromCart, clearCart, getTotalItems, isLoading } = useCart();
@@ -185,12 +186,39 @@ export default function Cart() {
                 <CardContent className="p-6 space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold mb-4">Summary</h2>
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Items</span>
-                        <span data-testid="text-total-items">{getTotalItems()}</span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const subtotal = items.reduce((sum, item) => {
+                        const price = parseFloat(String(item.product.totalRetail || item.product.partMSRP || item.product.price || "0").replace(/[^0-9.-]/g, '')) || 0;
+                        return sum + (price * item.quantity);
+                      }, 0);
+                      const tax = calculateTax(subtotal);
+                      const total = subtotal + tax;
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Items</span>
+                            <span data-testid="text-total-items">{getTotalItems()}</span>
+                          </div>
+                          {subtotal > 0 && (
+                            <>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Subtotal</span>
+                                <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">{TAX_JURISDICTION} Tax ({TAX_RATE_DISPLAY})</span>
+                                <span data-testid="text-tax">${tax.toFixed(2)}</span>
+                              </div>
+                              <Separator />
+                              <div className="flex justify-between font-semibold">
+                                <span>Estimated Total</span>
+                                <span data-testid="text-total">${total.toFixed(2)}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <Separator />

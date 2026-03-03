@@ -69,7 +69,7 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   getOrders(filters?: { status?: string; search?: string; createdBy?: string; page?: number; pageSize?: number }): Promise<PaginatedOrders>;
   getOrder(id: number): Promise<Order | undefined>;
-  updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null }): Promise<Order | undefined>;
+  updateOrder(id: number, data: { status?: string; assignedTo?: string | null; notes?: string | null; taxRate?: string; taxAmount?: string; cartItems?: any[]; cartTotal?: string; itemCount?: number }): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<boolean>;
   getOrderStats(): Promise<{ status: string; count: number }[]>;
 }
@@ -490,6 +490,8 @@ export class DatabaseStorage implements IStorage {
     notes?: string | null;
     cartItems?: any[];
     cartTotal?: string;
+    taxRate?: string;
+    taxAmount?: string;
     itemCount?: number;
   }): Promise<Order | undefined> {
     const updateData: any = { updatedAt: new Date() };
@@ -508,6 +510,12 @@ export class DatabaseStorage implements IStorage {
     }
     if (data.cartTotal !== undefined) {
       updateData.cartTotal = data.cartTotal;
+    }
+    if (data.taxRate !== undefined) {
+      updateData.taxRate = data.taxRate;
+    }
+    if (data.taxAmount !== undefined) {
+      updateData.taxAmount = data.taxAmount;
     }
     if (data.itemCount !== undefined) {
       updateData.itemCount = data.itemCount;

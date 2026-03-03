@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { TAX_RATE, TAX_RATE_DISPLAY, TAX_JURISDICTION, calculateTax } from "@shared/taxConfig";
 
 interface OrderFormData {
   customerName: string;
@@ -147,7 +148,9 @@ export function OrderCreationForm() {
     setShowAddItem(false);
   };
 
-  const cartTotal = calculateTotal();
+  const subtotal = parseFloat(calculateTotal());
+  const taxAmount = calculateTax(subtotal);
+  const cartTotal = (subtotal + taxAmount).toFixed(2);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -169,6 +172,8 @@ export function OrderCreationForm() {
           quantity: item.quantity,
         })),
         cartTotal,
+        taxRate: String(TAX_RATE),
+        taxAmount: taxAmount.toFixed(2),
         itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
       });
     },
@@ -333,11 +338,9 @@ export function OrderCreationForm() {
               />
             </div>
 
-            {/* Order Items Section */}
             <div className="border rounded-md p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-sm">Order Items ({orderItems.length})</span>
-                <span className="font-semibold">${cartTotal}</span>
               </div>
               
               {orderItems.length === 0 ? (
@@ -477,6 +480,23 @@ export function OrderCreationForm() {
                 )
               )}
             </div>
+
+            {orderItems.length > 0 && (
+              <div className="border rounded-md p-3 space-y-1" data-testid="cart-order-tax-summary">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>${subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{TAX_JURISDICTION} Tax ({TAX_RATE_DISPLAY})</span>
+                  <span>${taxAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t pt-1">
+                  <span>Total</span>
+                  <span>${cartTotal}</span>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button 

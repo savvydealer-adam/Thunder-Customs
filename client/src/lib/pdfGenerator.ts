@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { CartItemWithProduct } from "@/contexts/CartContext";
+import { TAX_RATE, TAX_RATE_DISPLAY, TAX_JURISDICTION, calculateTax } from "@shared/taxConfig";
 
 interface OrderForPDF {
   id: number;
@@ -11,6 +12,8 @@ interface OrderForPDF {
   notes: string | null;
   cartItems: any[];
   cartTotal: string | null;
+  taxRate: string | null;
+  taxAmount: string | null;
   itemCount: number;
   status: string;
   createdByName: string | null;
@@ -121,26 +124,37 @@ export function generateOrderPDF(order: OrderForPDF) {
     margin: { left: 14, right: 14 },
   });
   
-  // Order Total
   const finalY = (doc as any).lastAutoTable.finalY || yPos + 50;
+  let summaryY = finalY + 10;
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
-  doc.text(`Total Items: ${order.itemCount}`, 14, finalY + 10);
+  doc.text(`Total Items: ${order.itemCount}`, 14, summaryY);
   
   if (order.cartTotal) {
+    summaryY += 8;
+    if (order.taxAmount) {
+      const subtotal = parseFloat(order.cartTotal) - parseFloat(order.taxAmount);
+      doc.setFontSize(11);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 14, summaryY);
+      summaryY += 7;
+      const taxLabel = order.taxRate ? `${TAX_JURISDICTION} Tax (${(parseFloat(order.taxRate) * 100).toFixed(0)}%)` : `${TAX_JURISDICTION} Tax (${TAX_RATE_DISPLAY})`;
+      doc.text(`${taxLabel}: $${parseFloat(order.taxAmount).toFixed(2)}`, 14, summaryY);
+      summaryY += 7;
+    }
     doc.setFontSize(14);
     doc.setTextColor(30, 144, 255);
-    doc.text(`Order Total: $${parseFloat(order.cartTotal).toFixed(2)}`, 14, finalY + 18);
+    doc.text(`Order Total: $${parseFloat(order.cartTotal).toFixed(2)}`, 14, summaryY);
+    summaryY += 4;
   }
   
-  // Notes
   if (order.notes) {
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text("Notes:", 14, finalY + 28);
+    doc.text("Notes:", 14, summaryY + 8);
     doc.setTextColor(0, 0, 0);
     const splitNotes = doc.splitTextToSize(order.notes, 180);
-    doc.text(splitNotes, 14, finalY + 34);
+    doc.text(splitNotes, 14, summaryY + 14);
   }
 
   // Footer
@@ -225,7 +239,7 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   });
 
   const finalY = (doc as any).lastAutoTable.finalY || 95;
-  const totalPrice = items.reduce((sum, item) => {
+  const subtotalPrice = items.reduce((sum, item) => {
     const price = parsePrice(item.product.price);
     return sum + (price * item.quantity);
   }, 0);
@@ -234,10 +248,16 @@ export function generateShoppingListPDF(items: CartItemWithProduct[]) {
   doc.setTextColor(0, 0, 0);
   doc.text(`Total Items: ${items.reduce((sum, item) => sum + item.quantity, 0)}`, 14, finalY + 10);
   
-  if (totalPrice > 0) {
+  if (subtotalPrice > 0) {
+    const taxAmt = calculateTax(subtotalPrice);
+    const total = subtotalPrice + taxAmt;
+    doc.setFontSize(11);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Subtotal: $${subtotalPrice.toFixed(2)}`, 14, finalY + 18);
+    doc.text(`${TAX_JURISDICTION} Tax (${TAX_RATE_DISPLAY}): $${taxAmt.toFixed(2)}`, 14, finalY + 25);
     doc.setFontSize(12);
     doc.setTextColor(30, 144, 255);
-    doc.text(`Estimated Total: $${totalPrice.toFixed(2)}`, 14, finalY + 18);
+    doc.text(`Estimated Total: $${total.toFixed(2)}`, 14, finalY + 33);
   }
 
   // Footer
