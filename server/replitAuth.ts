@@ -162,6 +162,26 @@ export async function setupAuth(app: Express) {
       });
     });
   });
+
+  app.post("/api/admin/force-logout-all", async (req: any, res) => {
+    if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const adminUser = await storage.getUser(req.user.claims.sub);
+    if (!adminUser || adminUser.role !== 'admin') {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    try {
+      const { Pool } = await import("@neondatabase/serverless");
+      const db = new Pool({ connectionString: process.env.DATABASE_URL });
+      await db.query("DELETE FROM sessions");
+      await db.end();
+      res.json({ success: true, message: "All sessions cleared. Everyone will need to log in again." });
+    } catch (error: any) {
+      console.error("Failed to clear sessions:", error?.message);
+      res.status(500).json({ error: "Failed to clear sessions" });
+    }
+  });
 }
 
 export async function refreshUserToken(user: any) {

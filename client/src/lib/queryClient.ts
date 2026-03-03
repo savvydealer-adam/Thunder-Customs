@@ -1,7 +1,19 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+let isRedirectingToLogin = false;
+
+function handleSessionExpired() {
+  if (isRedirectingToLogin) return;
+  isRedirectingToLogin = true;
+  window.location.href = "/api/login";
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401 && !res.url.includes("/api/auth/user")) {
+      handleSessionExpired();
+      throw new Error("Session expired. Redirecting to login...");
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }

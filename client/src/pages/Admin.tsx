@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon, Download, Database, Users, ShoppingCart, Shield, Mail, Phone, Calendar, Package } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, FileText, X, ImageIcon, Download, Database, Users, ShoppingCart, Shield, Mail, Phone, Calendar, Package, LogOut } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -927,6 +927,24 @@ export default function Admin() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LogOut className="h-5 w-5" />
+                  Session Management
+                </CardTitle>
+                <CardDescription>
+                  Force all users to log out and re-authenticate
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Use this after changing user roles or if users are experiencing authentication issues. Everyone (including you) will need to log in again.
+                </p>
+                <ForceLogoutButton />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>System Information</CardTitle>
                 <CardDescription>
                   Current database and catalog status
@@ -1025,5 +1043,77 @@ function DatabaseImportForm() {
         Warning: This will replace all existing products and leads!
       </p>
     </div>
+  );
+}
+
+function ForceLogoutButton() {
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+
+  const forceLogoutMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/admin/force-logout-all') as { success: boolean; message: string };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Sessions Cleared",
+        description: data.message,
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 1500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed",
+        description: error?.message || "Could not clear sessions.",
+        variant: "destructive",
+      });
+      setConfirming(false);
+    },
+  });
+
+  if (confirming) {
+    return (
+      <div className="flex gap-2">
+        <Button
+          variant="destructive"
+          className="flex-1 gap-2"
+          onClick={() => {
+            forceLogoutMutation.mutate();
+            setConfirming(false);
+          }}
+          disabled={forceLogoutMutation.isPending}
+          data-testid="button-confirm-force-logout"
+        >
+          {forceLogoutMutation.isPending ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
+          Yes, Log Out Everyone
+        </Button>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => setConfirming(false)}
+          data-testid="button-cancel-force-logout"
+        >
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      className="w-full gap-2"
+      onClick={() => setConfirming(true)}
+      data-testid="button-force-logout-all"
+    >
+      <LogOut className="h-4 w-4" />
+      Force Logout All Users
+    </Button>
   );
 }
