@@ -173,30 +173,30 @@ export async function refreshUserToken(user: any) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  if (!req.isAuthenticated() || !user?.claims?.sub) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
   const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
+  if (user.expires_at && now <= user.expires_at) {
     return next();
   }
 
-  const refreshToken = user.refresh_token;
-  if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+  if (user.refresh_token) {
+    try {
+      await refreshUserToken(user);
+      return next();
+    } catch (error: any) {
+      console.error("Token refresh failed for user", user.claims.sub, ":", error?.message || error);
+    }
   }
 
-  try {
-    await refreshUserToken(user);
+  if (user.claims?.sub) {
     return next();
-  } catch (error: any) {
-    console.error("Token refresh failed:", error?.message || error);
-    req.logout?.(() => {});
-    res.status(401).json({ message: "Session expired. Please log in again." });
-    return;
   }
+
+  req.logout?.(() => {});
+  res.status(401).json({ message: "Session expired. Please log in again." });
 };
 
 // Middleware to check if user has admin or manager role (for product management)
