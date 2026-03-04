@@ -7,6 +7,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 
 const getOidcConfig = memoize(
@@ -40,6 +41,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   });
@@ -115,7 +117,15 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", (req, res, next) => {
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: "Too many login attempts. Please try again later.",
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.get("/api/login", loginLimiter, (req, res, next) => {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login",

@@ -68,20 +68,32 @@ export async function apiRequest(
       csrfToken = null;
       const retryToken = await ensureCsrfToken();
       headers["x-csrf-token"] = retryToken;
-      const retry = await fetch(url, {
-        method,
-        headers,
-        body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
-        credentials: "include",
-      });
-      await throwIfResNotOk(retry);
-      return retry.json();
+      try {
+        const retry = await fetch(url, {
+          method,
+          headers,
+          body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
+          credentials: "include",
+        });
+        await throwIfResNotOk(retry);
+        const retryContentType = retry.headers.get("content-type");
+        if (retryContentType && retryContentType.includes("application/json")) {
+          return retry.json();
+        }
+        return retry;
+      } catch (retryError) {
+        throw retryError;
+      }
     }
     throw new Error(`${res.status}: ${text}`);
   }
 
   await throwIfResNotOk(res);
-  return res.json();
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return res.json();
+  }
+  return res;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

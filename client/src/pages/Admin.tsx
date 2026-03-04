@@ -52,10 +52,11 @@ export default function Admin() {
   const { toast } = useToast();
 
   // Fetch all orders for admin view
-  const { data: orders, isLoading: isOrdersLoading } = useQuery<Order[]>({
+  const { data: ordersData, isLoading: isOrdersLoading } = useQuery<{ items: Order[]; total: number }>({
     queryKey: ['/api/orders'],
     enabled: !!user && isAdmin,
   });
+  const orders = ordersData?.items;
 
   // Fetch all users for admin view
   const { data: users, isLoading: isUsersLoading } = useQuery<UserType[]>({

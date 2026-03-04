@@ -48,6 +48,18 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 - PDF exports (order PDFs and shopping list PDFs) include tax breakdown using shared config
 - Order list view shows "incl. $X tax" below total; order detail dialog shows full subtotal/tax/total breakdown
 
+### Security Hardening (March 2026)
+
+- **Public API sanitization**: Internal pricing fields (cost, markup, margins) stripped from product API responses for unauthenticated users; staff/admin see full data
+- **CSRF**: Session-bound identifier (`req.session.id`), hard-fails without `SESSION_SECRET`; API-key bearer auth exempted for machine-to-machine endpoints
+- **Session cookie**: `sameSite: "lax"` added; auto-redirect to login on 401 responses (except initial auth check)
+- **Image upload validation**: File extension allowlist (JPG, PNG, WebP, GIF) + `parseIdParam` validation
+- **Timing-safe API key**: RC import endpoint uses `timingSafeEqual` for bearer token comparison
+- **Login rate limiting**: 20 attempts per 15 minutes via `express-rate-limit`
+- **Order PATCH validation**: Zod schema with `.strict()` validates all update fields
+- **Cron resilience**: 10-minute timeout wrapper + single retry after 5-minute delay; sequential retry prevents overlapping imports
+- **Admin force logout**: `/api/admin/force-logout-all` endpoint clears all sessions; UI button in Admin panel under "Session Management"
+
 ### Performance Optimizations (February 2026)
 
 - **Role caching**: User roles cached in session with 5-minute TTL (`cachedRole`/`cachedRoleAt` on session user object) to reduce DB queries in requireAdmin, requireStrictAdmin, requireStaff middleware
@@ -55,7 +67,7 @@ Client-side state uses TanStack Query for server data (products, categories, fil
 - **SQL safety**: `escapeLike()` helper escapes `%` and `_` wildcards in LIKE queries
 - **Image preservation**: Both Rough Country import and `createProducts()` use SQL CASE/COALESCE to preserve manually-uploaded images during bulk imports
 - **Pagination**: Leads and orders APIs support server-side pagination with `sql<number>\`count(*)::int\`` for counts, limit/offset for queries, returning `{items, total, page, pageSize, totalPages}`
-- **Scheduled imports**: `node-cron` runs Rough Country XLSX feed import daily at 2:00 AM Mountain Time (`server/cron.ts`); includes duplicate-run guard and progress logging
+- **Scheduled imports**: `node-cron` runs Rough Country XLSX feed import daily at 2:00 AM Mountain Time (`server/cron.ts`); includes duplicate-run guard, 10-minute timeout, and single retry
 
 ## External Dependencies
 

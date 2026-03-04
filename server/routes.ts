@@ -12,6 +12,7 @@ import { sendLeadNotification } from "./emailService";
 import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
 import rateLimit from "express-rate-limit";
 import { doubleCsrf } from "csrf-csrf";
+import { timingSafeEqual } from "crypto";
 
 const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -22,8 +23,20 @@ function parseIdParam(raw: string): number | null {
   return id;
 }
 
+function sanitizeProductForPublic(product: any) {
+  if (!product) return product;
+  const { cost, partCost, salesMarkup, salesOperator, salesType, salesInstallation,
+          costToSales, totalCostToSales, retailMarkup, retailOperator, retailType,
+          manuallyEdited, ...publicFields } = product;
+  return publicFields;
+}
+
 const { doubleCsrfProtection, generateCsrfToken } = doubleCsrf({
-  getSecret: () => process.env.SESSION_SECRET || "csrf-fallback-secret",
+  getSecret: () => {
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) throw new Error("SESSION_SECRET environment variable is required");
+    return secret;
+  },
   cookieName: "__csrf",
   cookieOptions: {
     httpOnly: true,
@@ -31,7 +44,7 @@ const { doubleCsrfProtection, generateCsrfToken } = doubleCsrf({
     secure: process.env.NODE_ENV === "production",
     path: "/",
   },
-  getSessionIdentifier: () => "app",
+  getSessionIdentifier: (req: any) => req.session?.id || "anonymous",
   getCsrfTokenFromRequest: (req: any) => req.headers["x-csrf-token"] as string,
 });
 
@@ -52,6 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     // Skip CSRF for auth callback (OIDC redirect)
     if (req.path === '/callback' || req.path === '/login' || req.path === '/logout') {
+      return next();
+    }
+    // Skip CSRF for API-key authenticated endpoints (machine-to-machine)
+    if (req.path === '/admin/import-rough-country' && req.headers.authorization?.startsWith('Bearer ')) {
       return next();
     }
     doubleCsrfProtection(req, res, next);
@@ -106,7 +123,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         page: page ? parseInt(page as string) : 1,
         pageSize: pageSize ? parseInt(pageSize as string) : 50,
       });
-      res.json(result);
+      const user = (req as any).user;
+      const isStaffUser = user?.claims?.sub ? await storage.getUser(user.claims.sub).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
+      const responseProducts = isStaffUser ? result.products : result.products.map(sanitizeProductForPublic);
+      res.json({ ...result, products: responseProducts });
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ error: "Failed to fetch products" });
@@ -167,7 +187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Product not found" });
       }
       
-      res.json(product);
+      const user = (req as any).user;
+      const isStaffUser = user?.claims?.sub ? await storage.getUser(user.claims.sub).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
+      res.json(isStaffUser ? product : sanitizeProductForPublic(product));
     } catch (error) {
       console.error("Error fetching product:", error);
       res.status(500).json({ error: "Failed to fetch product" });
@@ -185,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
       const result = await storage.getProductsByIds(numericIds);
-      res.json(result);
+      res.json(result.map(sanitizeProductForPublic));
     } catch (error) {
       console.error("Error fetching products batch:", error);
       res.status(500).json({ error: "Failed to fetch products" });
@@ -636,10 +658,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
   // Upload product image (saved to disk, URL stored in database)
   app.post("/api/admin/products/:id/image", isAuthenticated, requireAdmin, uploadImage.single('image'), async (req: any, res) => {
     try {
-      const { id } = req.params;
+      const id = parseIdParam(req.params.id);
+      if (id === null) return res.status(400).json({ message: "Invalid product ID" });
       
       if (!req.file) {
         return res.status(400).json({ error: "No image file uploaded" });
@@ -648,24 +673,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const path = await import("path");
       const fs = await import("fs");
       
+      const ext = (path.extname(req.file.originalname) || '.jpg').toLowerCase();
+      if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
+        return res.status(400).json({ message: "Invalid file type. Allowed: JPG, PNG, WebP, GIF" });
+      }
+
       const uploadsDir = path.resolve(import.meta.dirname, '..', 'uploads', 'product-images');
       fs.mkdirSync(uploadsDir, { recursive: true });
       
-      const ext = path.extname(req.file.originalname) || '.jpg';
       const filename = `product-${id}-${Date.now()}${ext}`;
       const filePath = path.join(uploadsDir, filename);
       
       fs.writeFileSync(filePath, req.file.buffer);
       
       const imageUrl = `/uploads/product-images/${filename}`;
-      const success = await storage.updateProductImage(parseInt(id), imageUrl);
+      const success = await storage.updateProductImage(id, imageUrl);
       
       if (!success) {
         fs.unlinkSync(filePath);
         return res.status(404).json({ error: "Product not found" });
       }
       
-      const updatedProduct = await storage.getProduct(parseInt(id));
+      const updatedProduct = await storage.getProduct(id);
       res.json({ success: true, product: updatedProduct });
     } catch (error) {
       console.error("Error uploading product image:", error);
@@ -1134,12 +1163,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const orderUpdateSchema = z.object({
+    status: z.enum(["pending", "processing", "completed", "cancelled"]).optional(),
+    assignedTo: z.string().optional(),
+    notes: z.string().optional(),
+    cartItems: z.array(z.any()).optional(),
+    cartTotal: z.string().optional(),
+    taxRate: z.string().optional(),
+    taxAmount: z.string().optional(),
+    itemCount: z.number().int().min(0).optional(),
+  }).strict();
+
   // Update order
   app.patch("/api/orders/:id", isAuthenticated, requireStaff, async (req: any, res) => {
     try {
       const id = parseIdParam(req.params.id);
       if (id === null) return res.status(400).json({ error: "Invalid ID parameter" });
-      const { status, assignedTo, notes, cartItems, cartTotal, itemCount } = req.body;
+      
+      const parseResult = orderUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid input", errors: parseResult.error.issues });
+      }
+      const body = parseResult.data;
+      const { status, assignedTo, notes, cartItems, cartTotal, itemCount } = body;
       
       // Check if user is trying to modify order items (requires admin/manager)
       const isModifyingItems = cartItems !== undefined || cartTotal !== undefined || itemCount !== undefined;
@@ -1180,12 +1226,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.cartTotal = cartTotal;
       }
 
-      if (req.body.taxRate !== undefined) {
-        updateData.taxRate = req.body.taxRate;
+      if (body.taxRate !== undefined) {
+        updateData.taxRate = body.taxRate;
       }
 
-      if (req.body.taxAmount !== undefined) {
-        updateData.taxAmount = req.body.taxAmount;
+      if (body.taxAmount !== undefined) {
+        updateData.taxAmount = body.taxAmount;
       }
       
       if (itemCount !== undefined) {
@@ -1237,7 +1283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (authHeader && authHeader.startsWith("Bearer ") && apiKey) {
         const token = authHeader.substring(7);
-        if (token === apiKey) {
+        if (token.length === apiKey.length && timingSafeEqual(Buffer.from(token), Buffer.from(apiKey))) {
           authorized = true;
           console.log("[RC Import] Authorized via API key");
         }
@@ -1253,8 +1299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(401).json({ error: "Unauthorized" });
         }
         const user = await storage.getUser(userId);
-        if (!user || user.role !== "admin") {
-          return res.status(403).json({ error: "Forbidden - Admin access required" });
+        if (!user || (user.role !== "admin" && user.role !== "manager")) {
+          return res.status(403).json({ error: "Forbidden - Admin or Manager access required" });
         }
         authorized = true;
         console.log("[RC Import] Authorized via admin auth");
