@@ -135,7 +135,7 @@ export default function Products() {
     [filtersData]
   );
 
-  const PRIORITY_MAKES = ['Jeep', 'Dodge', 'RAM', 'Chrysler'];
+  const PRIORITY_MAKES = ['Jeep', 'Dodge', 'Ram', 'RAM', 'Chrysler'];
   const vehicleMakes = useMemo(() => {
     const makes = filtersData?.vehicleMakes || [];
     return [...makes].sort((a, b) => {

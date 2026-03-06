@@ -362,3 +362,17 @@
     text-align: left !important;
   }
 }
+
+/* More visible scrollbars for filter panels and scroll areas */
+[data-radix-scroll-area-viewport] + div [data-orientation="vertical"] {
+  width: 8px !important;
+}
+
+[data-radix-scroll-area-viewport] + div [data-orientation="vertical"] > div {
+  background: hsl(var(--foreground) / 0.25) !important;
+  border-radius: 4px !important;
+}
+
+.dark [data-radix-scroll-area-viewport] + div [data-orientation="vertical"] > div {
+  background: hsl(var(--foreground) / 0.35) !important;
+}
