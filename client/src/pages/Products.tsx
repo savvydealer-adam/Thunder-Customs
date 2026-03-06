@@ -135,10 +135,18 @@ export default function Products() {
     [filtersData]
   );
 
-  const vehicleMakes = useMemo(() => 
-    filtersData?.vehicleMakes || [], 
-    [filtersData]
-  );
+  const PRIORITY_MAKES = ['Jeep', 'Dodge', 'RAM', 'Chrysler'];
+  const vehicleMakes = useMemo(() => {
+    const makes = filtersData?.vehicleMakes || [];
+    return [...makes].sort((a, b) => {
+      const aIdx = PRIORITY_MAKES.indexOf(a.value);
+      const bIdx = PRIORITY_MAKES.indexOf(b.value);
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [filtersData]);
 
   const products = data?.products || [];
   const totalPages = data?.totalPages || 1;
