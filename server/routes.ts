@@ -1,11 +1,10 @@
-// Reference: blueprint:javascript_log_in_with_replit
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
 import multer from "multer";
 import { InsertProduct } from "@shared/schema";
-import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireStaff, refreshUserToken } from "./replitAuth";
+import { setupAuth, isAuthenticated, requireAdmin, requireStrictAdmin, requireStaff } from "./auth";
 import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
@@ -77,22 +76,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes - returns envelope with user (null for unauthenticated)
   app.get('/api/auth/user', async (req: any, res) => {
     try {
-      if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      if (!req.isAuthenticated() || !req.user?.id) {
         return res.json({ user: null });
       }
 
       const user = req.user as any;
-      const now = Math.floor(Date.now() / 1000);
-      if (user.expires_at && now > user.expires_at && user.refresh_token) {
-        try {
-          await refreshUserToken(user);
-        } catch (refreshErr) {
-          return res.json({ user: null });
-        }
-      }
-      
-      const userId = req.user.claims.sub;
-      
+      const userId = user.id;
+
       let cachedUser = null;
       const cacheAge = Date.now() - (user.cachedUserAt || 0);
       if (user.cachedUser && cacheAge <= 300_000) {
@@ -102,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user.cachedUser = cachedUser;
         user.cachedUserAt = Date.now();
       }
-      
+
       res.json({ user: cachedUser });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -124,7 +114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pageSize: pageSize ? parseInt(pageSize as string) : 50,
       });
       const user = (req as any).user;
-      const isStaffUser = user?.claims?.sub ? await storage.getUser(user.claims.sub).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
+      const isStaffUser = user?.id ? await storage.getUser(user.id).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
       const responseProducts = isStaffUser ? result.products : result.products.map(sanitizeProductForPublic);
       res.json({ ...result, products: responseProducts });
     } catch (error) {
@@ -188,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const user = (req as any).user;
-      const isStaffUser = user?.claims?.sub ? await storage.getUser(user.claims.sub).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
+      const isStaffUser = user?.id ? await storage.getUser(user.id).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
       res.json(isStaffUser ? product : sanitizeProductForPublic(product));
     } catch (error) {
       console.error("Error fetching product:", error);
@@ -271,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = validationResult.data;
       
-      const userId = req.isAuthenticated?.() ? req.user?.claims?.sub : null;
+      const userId = req.isAuthenticated?.() ? req.user?.id : null;
       
       const itemCount = data.cartItems.reduce((sum, item) => sum + item.quantity, 0);
       
@@ -991,7 +981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserRole(id, role);
       
       // If updating current user's role, force session regeneration
-      if (req.user?.claims?.sub === id) {
+      if (req.user?.id === id) {
         req.session.destroy((err: any) => {
           if (err) {
             console.error("Error destroying session:", err);
@@ -1013,7 +1003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User profile update (any authenticated user can update their own profile)
   app.patch("/api/users/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.user?.id;
       if (!userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
@@ -1081,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const data = validationResult.data;
-      const userId = req.user?.claims?.sub;
+      const userId = req.user?.id;
       
       const user = await storage.getUser(userId);
       const createdByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : null;
@@ -1191,10 +1181,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isModifyingItems = cartItems !== undefined || cartTotal !== undefined || itemCount !== undefined;
       if (isModifyingItems) {
         const user = req.user as any;
-        if (!user?.claims?.sub) {
+        if (!user?.id) {
           return res.status(401).json({ error: "Unauthorized" });
         }
-        const dbUser = await storage.getUser(user.claims.sub);
+        const dbUser = await storage.getUser(user.id);
         if (!dbUser || (dbUser.role !== 'admin' && dbUser.role !== 'manager')) {
           return res.status(403).json({ error: "Only managers and admins can edit order items" });
         }
@@ -1294,7 +1284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.isAuthenticated || !req.isAuthenticated()) {
           return res.status(401).json({ error: "Unauthorized" });
         }
-        const userId = req.user?.claims?.sub;
+        const userId = req.user?.id;
         if (!userId) {
           return res.status(401).json({ error: "Unauthorized" });
         }

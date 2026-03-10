@@ -386,8 +386,15 @@ export async function importRoughCountryFeed(
   }
 }
 
-// CLI entry point
-if (import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/")) {
+// CLI entry point — only runs when this file is executed directly (not when bundled)
+// esbuild bundles all modules into one file, making import.meta.url match for all modules,
+// so we also check that no Express server is running (i.e., this is truly a standalone run).
+if (
+  typeof process !== "undefined" &&
+  process.argv[1] &&
+  !process.env.PORT &&
+  import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/")
+) {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
   const limitArg = args.find((a) => a.startsWith("--limit="));

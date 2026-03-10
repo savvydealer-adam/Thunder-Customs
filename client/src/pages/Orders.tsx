@@ -472,14 +472,14 @@ export default function Orders() {
             }
             setCreateDialogOpen(open);
           }}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-xl w-[90vw] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Order</DialogTitle>
                 <DialogDescription>
                   Enter customer details to create an order from the current cart items.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-hidden">
                 <div>
                   <Label htmlFor="customerName">Customer Name *</Label>
                   <Input
@@ -490,26 +490,28 @@ export default function Orders() {
                     data-testid="input-customer-name"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="customerEmail">Email</Label>
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    placeholder="customer@example.com"
-                    value={newOrderData.customerEmail}
-                    onChange={(e) => setNewOrderData(prev => ({ ...prev, customerEmail: e.target.value }))}
-                    data-testid="input-customer-email"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customerPhone">Phone</Label>
-                  <Input
-                    id="customerPhone"
-                    placeholder="(555) 555-5555"
-                    value={newOrderData.customerPhone}
-                    onChange={(e) => setNewOrderData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                    data-testid="input-customer-phone"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="customerEmail">Email</Label>
+                    <Input
+                      id="customerEmail"
+                      type="email"
+                      placeholder="customer@example.com"
+                      value={newOrderData.customerEmail}
+                      onChange={(e) => setNewOrderData(prev => ({ ...prev, customerEmail: e.target.value }))}
+                      data-testid="input-customer-email"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerPhone">Phone</Label>
+                    <Input
+                      id="customerPhone"
+                      placeholder="(555) 555-5555"
+                      value={newOrderData.customerPhone}
+                      onChange={(e) => setNewOrderData(prev => ({ ...prev, customerPhone: e.target.value }))}
+                      data-testid="input-customer-phone"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="vehicleInfo">Vehicle Information</Label>
@@ -532,7 +534,7 @@ export default function Orders() {
                   />
                 </div>
 
-                <div className="border rounded-md p-3">
+                <div className="border rounded-md p-3 overflow-hidden">
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-medium flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4" />
@@ -543,49 +545,56 @@ export default function Orders() {
                   {createOrderItems.length === 0 ? (
                     <p className="text-sm text-muted-foreground mb-3">No items yet. Add products from catalog{isAdmin && " or custom items"} below.</p>
                   ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
+                    <div className="space-y-2 max-h-48 overflow-y-auto overflow-x-hidden mb-3">
                       {createOrderItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-muted p-2 rounded text-sm">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{item.product.partName}</p>
-                            <p className="text-xs text-muted-foreground">{item.product.partNumber}</p>
+                        <div key={idx} className="bg-muted p-2 rounded text-sm overflow-hidden">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="font-medium text-sm leading-snug break-words line-clamp-2 flex-1">{item.product.partName}</p>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                                onClick={() => removeCreateItem(idx)}
+                                data-testid={`button-remove-create-item-${idx}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
+                          {item.product.partNumber && item.product.partNumber !== item.product.partName && item.product.partNumber !== "CUSTOM" && (
+                            <p className="text-xs text-muted-foreground mb-1">{item.product.partNumber}</p>
+                          )}
                           {isAdmin ? (
-                            <>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={item.quantity}
-                                onChange={(e) => updateCreateItemQuantity(idx, parseInt(e.target.value) || 1)}
-                                className="w-16 h-8 text-center"
-                                data-testid={`input-create-qty-${idx}`}
-                              />
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs">$</span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <Label className="text-xs text-muted-foreground shrink-0">Qty:</Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) => updateCreateItemQuantity(idx, parseInt(e.target.value) || 1)}
+                                  className="w-16 h-7 text-center"
+                                  data-testid={`input-create-qty-${idx}`}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Label className="text-xs text-muted-foreground shrink-0">$</Label>
                                 <Input
                                   type="text"
                                   value={item.product.price}
                                   onChange={(e) => updateCreateItemPrice(idx, e.target.value)}
                                   placeholder="0.00"
-                                  className="w-20 h-8"
+                                  className="w-24 h-7"
                                   data-testid={`input-create-price-${idx}`}
                                 />
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => removeCreateItem(idx)}
-                                data-testid={`button-remove-create-item-${idx}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
+                            </div>
                           ) : (
-                            <div className="text-right">
-                              <span className="text-sm">x{item.quantity}</span>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span>Qty: {item.quantity}</span>
                               {item.product.price && (
-                                <span className="text-sm text-muted-foreground ml-2">${item.product.price}</span>
+                                <span className="text-muted-foreground">${item.product.price}</span>
                               )}
                             </div>
                           )}
@@ -947,7 +956,9 @@ export default function Orders() {
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">{item.product.partName}</p>
                               <p className="text-muted-foreground text-xs truncate">
-                                {item.product.partNumber} · {item.product.manufacturer}
+                                {item.product.partNumber && item.product.partNumber !== item.product.partName && !item.product.partNumber.startsWith("CUSTOM")
+                                  ? `${item.product.partNumber} · ${item.product.manufacturer}`
+                                  : item.product.manufacturer}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1060,7 +1071,9 @@ export default function Orders() {
                             <div>
                               <p className="font-medium">{item.product.partName}</p>
                               <p className="text-muted-foreground">
-                                {item.product.partNumber} · {item.product.manufacturer}
+                                {item.product.partNumber && item.product.partNumber !== item.product.partName && !item.product.partNumber.startsWith("CUSTOM")
+                                  ? `${item.product.partNumber} · ${item.product.manufacturer}`
+                                  : item.product.manufacturer}
                               </p>
                             </div>
                             <div className="text-right">

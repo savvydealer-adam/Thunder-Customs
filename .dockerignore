@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.replit
+replit.md
+*.md
+.env
+.env.*
+uploads/product-images/*
+mopar-scraper

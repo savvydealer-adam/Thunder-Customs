@@ -1,4 +1,3 @@
-// Reference: blueprint:javascript_log_in_with_replit
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@shared/schema";
 
