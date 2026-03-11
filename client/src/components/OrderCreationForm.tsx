@@ -178,7 +178,6 @@ export function OrderCreationForm() {
       });
     },
     onSuccess: () => {
-      setSubmitted(true);
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/orders/stats'] });
       toast({
@@ -186,6 +185,7 @@ export function OrderCreationForm() {
         description: "The order has been saved successfully.",
       });
       clearCart();
+      window.location.href = "/orders";
     },
     onError: (error: Error) => {
       toast({

@@ -128,7 +128,8 @@ export default function Orders() {
       queryClient.invalidateQueries({ queryKey: ['/api/orders/stats'] });
       setCreateDialogOpen(false);
       setNewOrderData({ customerName: "", customerEmail: "", customerPhone: "", vehicleInfo: "", notes: "" });
-      clearCart();
+      setCreateOrderItems([]);
+      if (cartItems.length > 0) clearCart();
       toast({
         title: "Order Created",
         description: "Order has been created successfully.",
