@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
@@ -1345,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // MOPAR OEM PARTS IMPORT
   // =============================================
 
-  app.post("/api/admin/import-mopar", require("express").json({ limit: "10mb" }), async (req: any, res) => {
+  app.post("/api/admin/import-mopar", express.json({ limit: "10mb" }), async (req: any, res) => {
     try {
       // Auth: API key OR admin session
       const importKey = req.headers["x-import-key"] as string | undefined;
