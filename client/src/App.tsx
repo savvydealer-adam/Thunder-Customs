@@ -16,12 +16,14 @@ import EmployeeManagement from "@/pages/EmployeeManagement";
 import Leads from "@/pages/Leads";
 import Orders from "@/pages/Orders";
 import Profile from "@/pages/Profile";
+import Tires from "@/pages/Tires";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/tires" component={Tires} />
       <Route path="/products" component={Products} />
       <Route path="/products/:id" component={ProductDetail} />
       <Route path="/products/:id/edit" component={ProductEdit} />

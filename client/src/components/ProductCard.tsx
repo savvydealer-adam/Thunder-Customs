@@ -15,6 +15,10 @@ export function ProductCard({ product }: ProductCardProps) {
   const { addToCart } = useCart();
   const { toast } = useToast();
 
+  // Show the best available price: totalRetail > partRetail > price, skip placeholder $0.02
+  const rawPrice = parseFloat(product.totalRetail || product.partRetail || product.price || '0');
+  const displayPrice = rawPrice > 1 ? rawPrice.toFixed(2) : null;
+
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -77,7 +81,7 @@ export function ProductCard({ product }: ProductCardProps) {
       </CardHeader>
 
       <CardContent className="flex-1 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="secondary" className="text-xs" data-testid={`badge-category-${product.id}`}>
             {product.category}
           </Badge>
@@ -87,6 +91,13 @@ export function ProductCard({ product }: ProductCardProps) {
             </Badge>
           )}
         </div>
+        {displayPrice && (
+          <div className="mt-2">
+            <span className="text-lg font-bold text-primary" data-testid={`text-price-${product.id}`}>
+              ${displayPrice}
+            </span>
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="flex-none pt-0 flex items-center justify-end">

@@ -73,6 +73,11 @@ export function Header() {
                 Shop Parts
               </Button>
             </Link>
+            <Link href="/tires" className="hidden md:block">
+              <Button variant="ghost" data-testid="button-tires">
+                Shop Tires
+              </Button>
+            </Link>
             
             {isStaff && (
               <Link href="/leads" className="hidden md:block">
@@ -234,6 +239,11 @@ export function Header() {
                   <Link href="/products" onClick={() => setMobileMenuOpen(false)}>
                     <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-shop">
                       Shop Parts
+                    </Button>
+                  </Link>
+                  <Link href="/tires" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start" data-testid="mobile-button-tires">
+                      Shop Tires
                     </Button>
                   </Link>
 

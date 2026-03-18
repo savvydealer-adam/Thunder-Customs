@@ -119,6 +119,15 @@ export default function ProductDetail() {
                     )}
                   </div>
                   
+                  {(() => {
+                    const rawPrice = parseFloat(product.totalRetail || product.partRetail || product.price || '0');
+                    return rawPrice > 1 ? (
+                      <div className="mt-3" data-testid="text-price">
+                        <span className="text-3xl font-bold text-primary">${rawPrice.toFixed(2)}</span>
+                      </div>
+                    ) : null;
+                  })()}
+
                   <div className="flex items-center gap-3 flex-wrap mt-4">
                     <Badge variant="outline" className="gap-1" data-testid="badge-manufacturer">
                       <Factory className="h-3 w-3" />
