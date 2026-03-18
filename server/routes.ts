@@ -9,6 +9,7 @@ import { parsePDFCatalog } from "./pdfParser";
 import { generateAdfXml } from "./adfGenerator";
 import { sendLeadNotification } from "./emailService";
 import { importRoughCountryFeed, type ImportStats } from "../scripts/import-rough-country";
+import { importMoparPayload, type ExportPayload as MoparPayload } from "../scripts/import-mopar-official";
 import rateLimit from "express-rate-limit";
 import { doubleCsrf } from "csrf-csrf";
 import { timingSafeEqual } from "crypto";
@@ -68,6 +69,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     // Skip CSRF for API-key authenticated endpoints (machine-to-machine)
     if (req.path === '/admin/import-rough-country' && req.headers.authorization?.startsWith('Bearer ')) {
+      return next();
+    }
+    if (req.path === '/admin/import-mopar' && req.headers['x-import-key']) {
       return next();
     }
     doubleCsrfProtection(req, res, next);
@@ -1332,6 +1336,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("[RC Import] API error:", error);
       res.status(500).json({
         error: "Failed to import Rough Country feed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // =============================================
+  // MOPAR OEM PARTS IMPORT
+  // =============================================
+
+  app.post("/api/admin/import-mopar", require("express").json({ limit: "10mb" }), async (req: any, res) => {
+    try {
+      // Auth: API key OR admin session
+      const importKey = req.headers["x-import-key"] as string | undefined;
+      const apiKey = process.env.MOPAR_IMPORT_KEY;
+
+      let authorized = false;
+
+      if (importKey && apiKey && importKey.length === apiKey.length) {
+        if (timingSafeEqual(Buffer.from(importKey), Buffer.from(apiKey))) {
+          authorized = true;
+          console.log("[Mopar Import] Authorized via API key");
+        }
+      }
+
+      if (!authorized) {
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const userId = req.user?.id;
+        if (!userId) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const user = await storage.getUser(userId);
+        if (!user || (user.role !== "admin" && user.role !== "manager")) {
+          return res.status(403).json({ error: "Forbidden - Admin or Manager access required" });
+        }
+        authorized = true;
+        console.log("[Mopar Import] Authorized via admin auth");
+      }
+
+      if (!authorized) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const payload = req.body as MoparPayload;
+
+      if (!payload.products || !Array.isArray(payload.products)) {
+        return res.status(400).json({ error: "products array required" });
+      }
+      if (!payload.export_type) {
+        return res.status(400).json({ error: "export_type required (full_catalog, enrichment, incremental)" });
+      }
+
+      const dryRun = req.query.dryRun === "true";
+      const limitParam = req.query.limit;
+      const limit = limitParam ? parseInt(limitParam as string, 10) : undefined;
+
+      console.log(
+        `[Mopar Import] Starting ${payload.export_type} import: ` +
+        `${payload.products.length} products (dryRun: ${dryRun}, limit: ${limit || "none"})`
+      );
+
+      const stats = await importMoparPayload(payload, { dryRun, limit });
+
+      console.log(
+        `[Mopar Import] Complete: +${stats.added} added, ~${stats.updated} updated, ` +
+        `${stats.skipped} skipped, -${stats.removed} removed, ${stats.errors} errors`
+      );
+
+      res.json({
+        success: true,
+        export_type: payload.export_type,
+        dryRun,
+        stats,
+      });
+    } catch (error) {
+      console.error("[Mopar Import] API error:", error);
+      res.status(500).json({
+        error: "Failed to import Mopar data",
         message: error instanceof Error ? error.message : String(error),
       });
     }

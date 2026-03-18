@@ -2,7 +2,11 @@
  * Node bridge: reads JSON exports from the Python mopar-scraper pipeline
  * and upserts products into the ThunderCustoms PostgreSQL database via Drizzle.
  *
- * Usage:
+ * Can be used as:
+ * 1. CLI: npx tsx scripts/import-mopar-official.ts --type=full_catalog
+ * 2. API: imported by routes.ts for POST /api/admin/import-mopar
+ *
+ * Usage (CLI):
  *   npx tsx scripts/import-mopar-official.ts --type=full_catalog
  *   npx tsx scripts/import-mopar-official.ts --type=incremental
  *   npx tsx scripts/import-mopar-official.ts --type=enrichment
@@ -20,7 +24,7 @@ const EXPORTS_DIR = 'C:/Users/adam/mopar-scraper/data/exports';
 const ARCHIVE_DIR = 'C:/Users/adam/mopar-scraper/data/exports/archive';
 const BATCH_SIZE = 500;
 
-interface ExportProduct {
+export interface ExportProduct {
   partNumber: string;
   partName: string;
   manufacturer: string;
@@ -28,17 +32,27 @@ interface ExportProduct {
   description: string | null;
   price: string | null;
   imageUrl: string | null;
+  imageUrls?: string[];
   imageSource: string | null;
   dataSource: string;
   isHidden: boolean;
 }
 
-interface ExportPayload {
+export interface ExportPayload {
   export_type: 'full_catalog' | 'incremental' | 'enrichment';
   exported_at: string;
   products: ExportProduct[];
   removed_part_numbers: string[];
   total_count: number;
+}
+
+export interface MoparImportStats {
+  added: number;
+  updated: number;
+  skipped: number;
+  removed: number;
+  errors: number;
+  total: number;
 }
 
 function findExportFiles(typeFilter?: string): string[] {
@@ -65,7 +79,7 @@ function archiveFile(filePath: string): void {
   fs.renameSync(filePath, path.join(ARCHIVE_DIR, filename));
 }
 
-async function importFullCatalog(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ added: number; skipped: number; errors: number }> {
+export async function importFullCatalog(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ added: number; skipped: number; errors: number }> {
   let added = 0;
   let skipped = 0;
   let errors = 0;
@@ -123,7 +137,7 @@ async function importFullCatalog(payload: ExportPayload, dryRun: boolean, limit:
   return { added, skipped, errors };
 }
 
-async function importEnrichment(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ updated: number; skipped: number; errors: number }> {
+export async function importEnrichment(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ updated: number; skipped: number; errors: number }> {
   let updated = 0;
   let skipped = 0;
   let errors = 0;
@@ -182,7 +196,7 @@ async function importEnrichment(payload: ExportPayload, dryRun: boolean, limit: 
   return { updated, skipped, errors };
 }
 
-async function importIncremental(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ added: number; removed: number; skipped: number; errors: number }> {
+export async function importIncremental(payload: ExportPayload, dryRun: boolean, limit: number | null): Promise<{ added: number; removed: number; skipped: number; errors: number }> {
   // Import new products
   const catalogResult = await importFullCatalog(payload, dryRun, limit);
 
@@ -217,6 +231,50 @@ async function importIncremental(payload: ExportPayload, dryRun: boolean, limit:
     skipped: catalogResult.skipped,
     errors: catalogResult.errors,
   };
+}
+
+/**
+ * Import a Mopar payload via API. Handles all export types and returns unified stats.
+ */
+export async function importMoparPayload(
+  payload: ExportPayload,
+  options: { dryRun?: boolean; limit?: number } = {},
+): Promise<MoparImportStats> {
+  const dryRun = options.dryRun ?? false;
+  const limit = options.limit ?? null;
+
+  const stats: MoparImportStats = {
+    added: 0, updated: 0, skipped: 0, removed: 0, errors: 0, total: payload.products.length,
+  };
+
+  switch (payload.export_type) {
+    case 'full_catalog': {
+      const result = await importFullCatalog(payload, dryRun, limit);
+      stats.added = result.added;
+      stats.skipped = result.skipped;
+      stats.errors = result.errors;
+      break;
+    }
+    case 'incremental': {
+      const result = await importIncremental(payload, dryRun, limit);
+      stats.added = result.added;
+      stats.removed = result.removed;
+      stats.skipped = result.skipped;
+      stats.errors = result.errors;
+      break;
+    }
+    case 'enrichment': {
+      const result = await importEnrichment(payload, dryRun, limit);
+      stats.updated = result.updated;
+      stats.skipped = result.skipped;
+      stats.errors = result.errors;
+      break;
+    }
+    default:
+      throw new Error(`Unknown export type: ${payload.export_type}`);
+  }
+
+  return stats;
 }
 
 async function main() {
