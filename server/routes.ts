@@ -1045,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orderSchema = z.object({
         customerName: z.string().min(1, "Customer name is required"),
-        customerEmail: z.string().email().optional().nullable(),
+        customerEmail: z.string().optional().nullable().transform(v => v || null),
         customerPhone: z.string().optional().nullable(),
         vehicleInfo: z.string().optional().nullable(),
         notes: z.string().optional().nullable(),
