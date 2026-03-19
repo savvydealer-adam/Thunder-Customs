@@ -16,4 +16,4 @@ COPY --from=builder /app/attached_assets ./attached_assets
 RUN mkdir -p uploads/product-images
 EXPOSE 8080
 ENV PORT=8080 NODE_ENV=production
-CMD ["node", "dist/index.js"]
+CMD ["node", "--max-old-space-size=1536", "dist/index.js"]
