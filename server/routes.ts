@@ -109,6 +109,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/products", async (req, res) => {
     try {
       const { category, manufacturer, vehicleMake, vehicleModel, search, page, pageSize } = req.query;
+      const user = (req as any).user;
+      const isStaffUser = user?.id ? await storage.getUser(user.id).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
       const result = await storage.getProducts({
         category: category as string | undefined,
         manufacturer: manufacturer as string | undefined,
@@ -117,9 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         search: search as string | undefined,
         page: page ? parseInt(page as string) : 1,
         pageSize: pageSize ? parseInt(pageSize as string) : 50,
+        includeNoImage: isStaffUser ? true : false,
       });
-      const user = (req as any).user;
-      const isStaffUser = user?.id ? await storage.getUser(user.id).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
       const responseProducts = isStaffUser ? result.products : result.products.map(sanitizeProductForPublic);
       res.json({ ...result, products: responseProducts });
     } catch (error) {
@@ -133,9 +134,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { db } = await import("./db");
       const { products } = await import("@shared/schema");
-      const { sql, or, eq, isNull } = await import("drizzle-orm");
-      
-      const visibilityCondition = or(eq(products.isHidden, false), isNull(products.isHidden));
+      const { sql, or, eq, isNull, and } = await import("drizzle-orm");
+
+      const user = (_req as any).user;
+      const isStaffUser = user?.id ? await storage.getUser(user.id).then(u => u && ['admin', 'manager', 'staff', 'salesman'].includes(u.role || '')).catch(() => false) : false;
+      const visibilityCondition = isStaffUser
+        ? or(eq(products.isHidden, false), isNull(products.isHidden))
+        : and(
+            or(eq(products.isHidden, false), isNull(products.isHidden)),
+            sql`${products.imageUrl} IS NOT NULL AND ${products.imageUrl} != '' AND ${products.imageUrl} NOT LIKE '%placehold%'`
+          );
       
       const [categoriesResult, manufacturersResult, vehicleMakesResult] = await Promise.all([
         db.select({ name: products.category, count: sql<number>`count(*)::int` })

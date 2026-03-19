@@ -35,6 +35,7 @@ export interface ProductFilters {
   search?: string;
   page?: number;
   pageSize?: number;
+  includeNoImage?: boolean; // Staff-only: show products without images
 }
 
 export interface IStorage {
@@ -84,7 +85,12 @@ export class DatabaseStorage implements IStorage {
     
     // Exclude hidden products (but include NULL values which are not explicitly hidden)
     conditions.push(or(eq(products.isHidden, false), isNull(products.isHidden)));
-    
+
+    // For public users, hide products without images
+    if (!filters?.includeNoImage) {
+      conditions.push(sql`${products.imageUrl} IS NOT NULL AND ${products.imageUrl} != '' AND ${products.imageUrl} NOT LIKE '%placehold%'`);
+    }
+
     if (filters?.category) {
       const categories = filters.category.split(',');
       if (categories.length === 1) {
